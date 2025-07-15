@@ -1,7 +1,5 @@
-let gameMode = 'offline'; 
-let yourColor; 
+let userDefined;
 let selectedRoomId; 
-
 
 function playTwoPlayer() {
     gameMode = 'offline'; 
@@ -55,6 +53,13 @@ async function startNewGame() {
     resetGame(yourColor,"onlineGameBoard"); 
 }
 
+async function finishGame(winner) {
+    document.getElementById("onlineGameContainer").style.opacity = "0.1";
+    document.getElementById("afterEndOfOnlineGameContainer").style.display = "block";
+
+    document.getElementById("afterEndOfOnlineGameMessage").innerText = `Game Over! ${winner} player wins.`;
+}
+
 async function joinGameFromList() {
     gameMode = 'online'; 
     let roomId = selectedRoomId; 
@@ -96,6 +101,37 @@ function updateGameListUI() {
     });
 }
 
+function updateGameHistoryListUI(data) {
+    const gameHistoryListContainer = document.getElementById("gameHistoryListContainer");
+    gameHistoryListContainer.innerHTML = "";
+
+    const fragment = document.createDocumentFragment();
+
+    data.forEach(({ gameData, date, owner, whitePlayer, winner }) => {
+        const roomDiv = document.createElement("div");
+        roomDiv.classList.add("game-history-room");
+
+        const openButton = document.createElement("button");
+        openButton.textContent = "►";
+        openButton.classList.add("open-game-history-button");
+        openButton.addEventListener("click", () => openGameFromHistory(gameData, date, owner, whitePlayer, winner));
+
+        const dateSpan = document.createElement("span");
+        dateSpan.textContent = date;
+
+        const resultDot = document.createElement("div");
+        resultDot.classList.add("result-dot");
+        resultDot.classList.add(owner === winner ? "win" : "lose");
+
+        roomDiv.appendChild(openButton);
+        roomDiv.appendChild(dateSpan);
+        roomDiv.appendChild(resultDot);
+        fragment.appendChild(roomDiv);
+    });
+
+    gameHistoryListContainer.appendChild(fragment);
+}
+
 function selectFromList(roomId, roomElement) {
     document.querySelectorAll(".game-room").forEach(div => {
         div.classList.remove("selected-room");
@@ -120,16 +156,54 @@ function updateOpponentProfile(profilePicture, userName) {
     }
 }
 
-function updateAccountUI(profilePicture, userName) {
+function updateAccountUI(profilePicture, userName, email, birthyear) {
+    userDefined = true
     const nameElement = document.getElementById("accountName");
-    if (nameElement) {
+    const profileNameElement = document.getElementById("accountProfileName");
+    const emailElement = document.getElementById("accountProfileEmail");
+    const birthyearElement = document.getElementById("accountProfileBirthyear");
+
+    if (userName !== '') {
         nameElement.textContent = userName; 
         nameElement.style.marginLeft = '20px';
+    } else {
+        nameElement.textContent = 'Account'; 
+        nameElement.style.marginLeft = '0px';
     }
+    
+    profileNameElement.textContent = 'Name: ' + userName;
+    birthyearElement.textContent = 'Birthyear: ' + birthyear;
+    emailElement.textContent = 'Email: ' + email;
 
     const avatarElement = document.getElementById("accountProfilePicture");
-    avatarElement.style.display = 'block';
-    if (avatarElement && profilePicture) {
+    if (avatarElement && profilePicture !== '') {
+        avatarElement.style.display = 'block';
         avatarElement.src = `data:image/jpeg;base64,${profilePicture}`; 
+    } else {
+        avatarElement.style.display = 'none';
+        avatarElement.src = ''
     }
+
+    const AccountMenu = document.getElementById("AccountMenuButtonId");
+    if (AccountMenu && userName !== '' && email !== '' && birthyear !== '') {
+        AccountMenu.onclick = function () { navigateTo('PersonalAccountMenu');};
+    } else {
+        AccountMenu.onclick = function () { navigateTo('AccountMenu');};
+    }
+
+}
+
+function openGameFromHistory(gameData, date, owner, whitePlayer, winner) {
+    if (!gameData) {
+        alert("No game data found.");
+        return;
+    }
+
+    const parsedGameData = JSON.parse(gameData);
+    console.log("Parsed Game Data:", parsedGameData);
+
+    resetGame(owner === winner ? 'white' : 'black', 'reviewGameBoard', parsedGameData); 
+
+    navigateTo('reviewGameContainer');
+
 }
