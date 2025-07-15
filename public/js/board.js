@@ -1,4 +1,3 @@
-
 function createBoard(color,boardLocation) {
     const board = document.getElementById(boardLocation);
     const boardFragment = document.createDocumentFragment(); 
