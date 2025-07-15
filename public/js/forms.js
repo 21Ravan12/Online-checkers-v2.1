@@ -146,13 +146,20 @@ async function logIn(event) {
         }
 
         if (data.message) {
-            updateAccountUI(data.profilePicture,data.name)
-            alert(data.message);
+            updateAccountUI(data.profilePicture,data.name,data.email, data.birthyear);
             navigateTo("menu");
         } 
     } catch (error) {
         alert(error.message);
     }
+}
+
+async function logOut() {
+    sessionStorage.clear("authToken");
+    sessionStorage.clear("authToken");
+    sessionStorage.clear("user_id");
+    updateAccountUI("", "", "", "");
+    navigateTo("menu");
 }
 
 async function sendVerifyCode(event) {
@@ -315,4 +322,99 @@ async function findUser(id) {
     }
 }
 
+async function saveGameData(turnData, winner) {
+    const owner = sessionStorage.getItem("user_id");
+    const whitePlayer = yourColor === "white" ? owner : opponentIdentifier;
+    const blackPlayer = yourColor === "black" ? owner : opponentIdentifier;
 
+    console.log("Saving game data:", {
+        owner,
+        whitePlayer,
+        blackPlayer,
+        winner: winner === yourColor ? owner : opponentIdentifier,
+        turnData,
+    });
+    if (!owner) {
+        alert("owner is not defined. Please log in to save the game.");
+        return;
+    }
+    if (!whitePlayer || !blackPlayer) {
+        alert("Players are not defined. Please ensure both players are set.");
+        return;
+    }
+    if (!turnData || !Array.isArray(turnData) || turnData.length === 0) {
+        alert("Turn data is invalid or empty. Please ensure the game has valid moves.");
+        return;
+    }
+    if (!winner) {
+        alert("Winner is not defined. Please ensure the game has a winner.");
+        return;
+    }
+
+    const gameData = {
+        owner,
+        whitePlayer,
+        blackPlayer,
+        winner: winner === yourColor ? owner : opponentIdentifier,
+        gameData: JSON.stringify(turnData)
+    };
+
+    try {
+        const response = await fetch("http://127.0.0.1:9090/api/games/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(gameData)
+        });
+
+        console.log("Raw Response:", response);
+
+        let data;
+        try {
+            data = await response;
+            console.log("Parsed Response:", data);
+        } catch (error) {
+            console.error("Invalid JSON response:", data, error);
+            alert("Invalid response from server: " + data);
+            return;
+        }
+
+        if (!response.ok) {
+            const errorMessage = data?.error || "An error occurred while registering.";
+            alert(errorMessage);
+            console.log(errorMessage);
+            return;
+        }
+
+        if (data.message) {
+            alert(data.message);
+            navigateTo("onlineGameContainer");
+        }
+    } catch (error) {
+        alert("An unexpected error occurred: " + error.message);
+    }
+}
+
+async function getGameHistoryList() {
+    const userId = sessionStorage.getItem("user_id");
+    if (!userId) {
+        alert("Please log in to view game history.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`http://127.0.0.1:9090/api/games/search?owner=${encodeURIComponent(userId)}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await response.json();
+        console.log("Response Data:", data);
+
+        if (data) {
+            updateGameHistoryListUI(data);
+        }
+
+    } catch (error) {
+        console.error("Fetch error:", error);
+    }
+}
