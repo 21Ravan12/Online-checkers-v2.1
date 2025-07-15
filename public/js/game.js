@@ -203,15 +203,22 @@ function capturePiece(piece) {
 
 function checkWinner() {
     debugInfo(`Checking winner. White captured: ${whiteCapturedPieces}, Black captured: ${blackCapturedPieces}`);
+
     if (whiteCapturedPieces === 12) {
-        alert("White player wins!");
         if (gameMode === "offline") {
             resetGame();
         }
+        if (gameMode === "online") {
+            saveGameData(turnData, "white");
+            finishGame("white");
+        }
     } else if (blackCapturedPieces === 12) {
-        alert("Black player wins!");
         if (gameMode === "offline") {
             resetGame();
+        }
+        if (gameMode === "online") {
+            saveGameData(turnData, "black");
+            finishGame("black");
         }
     }
 }
@@ -321,15 +328,16 @@ function handleSquareClick(event) {
                     !isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol) &&
                     !square.hasChildNodes()
                 ) {
-                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
                     movePiece(square, true);
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
                 } 
 
                 else if (
                     isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol) &&
                     selectedPiece.classList.contains(`${yourColor}-piece`)
                 ) {
-                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol, 'capture');
                     handleCapture(selectedRow, selectedCol, targetRow, targetCol, square);
                 } 
 
@@ -347,8 +355,9 @@ function handleSquareClick(event) {
                     Math.abs(targetCol - selectedCol) === 1 &&
                     !square.hasChildNodes()
                 ) {
-                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
                     movePiece(square, true);
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
                 } else if (
                     square.classList.contains("black-square") &&
                     selectedPiece.classList.contains("black-piece") &&
@@ -357,8 +366,9 @@ function handleSquareClick(event) {
                     Math.abs(targetCol - selectedCol) === 1 &&
                     !square.hasChildNodes()
                 ) {
-                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
                     movePiece(square, true);
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
                 } 
 
                 else if (
@@ -435,6 +445,7 @@ function handleOpponentMove(fromRow, fromCol, toRow, toCol) {
             !isValidQueenCapture(fromRow, fromCol, toRow, toCol) &&
             !squareTo.hasChildNodes()
         ) {
+            saveTurnData(fromRow, fromCol, toRow, toCol);
             movePiece(squareTo, true); 
         } 
 
@@ -452,6 +463,7 @@ function handleOpponentMove(fromRow, fromCol, toRow, toCol) {
             Math.abs(toCol - fromCol) === 1 &&
             !squareTo.hasChildNodes()
         ) {
+            saveTurnData(fromRow, fromCol, toRow, toCol);
             movePiece(squareTo, true); 
         } 
 
@@ -756,15 +768,16 @@ function clearSelection() {
     selectedPiece = null;
 }
 
-function resetGame(color = "white",boardLocation = "offlineGameBoard") {
+function resetGame(color = "white", boardLocation = "offlineGameBoard", readyTurnData = []) {
     whiteCapturedPieces = 0;
     blackCapturedPieces = 0;
     turnCount = 0;
-    turnData = [];
+    turnData = readyTurnData;
     selectedPiece = null;
     currentPlayer = "white";
     debugInfo("Game reset.");
     document.getElementById("offlineGameBoard").innerHTML = "";
+    document.getElementById("reviewGameBoard").innerHTML = "";
     document.getElementById("onlineGameBoard").innerHTML = "";
     createBoard(color,boardLocation);
     addSquareEventListeners();
