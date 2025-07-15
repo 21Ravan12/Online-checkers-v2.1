@@ -1,0 +1,2643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkers Game</title>
+    
+    <script defer>
+let gameMode = 'offline'; // veya 'online' olarak ayarlanabilir
+let socket;
+let yourColor; 
+let activeRooms = [];
+let activeRoomId = null;
+let opponentIdentifier = null;
+
+function debugInfo(message, data) {
+    console.log(`[DEBUG] ${message}:`, data);
+}
+
+function initSocket() {
+    const script = document.createElement("script");
+    script.src = "https://cdn.socket.io/4.5.4/socket.io.min.js";
+    script.onload = () => {
+        socket = io("http://127.0.0.1:3002");
+
+        socket.on("yourColor", (color) => {
+            debugInfo("Assigned color", color);
+            yourColor = color;
+        });
+
+        socket.on("error", (message) => {
+            console.error(`[ERROR] ${message}`);
+        });
+
+        socket.on("move", (move) => {
+            if (move && move.from && move.to) {
+                debugInfo("Opponent move received", move);
+                handleOpponentMove(move.from.row, move.from.col, move.to.row, move.to.col);
+            } else {
+                console.error("[ERROR] Invalid move data received", move);
+            }
+        });
+
+        socket.on("roomsList", (roomInfo) => {
+            activeRooms = roomInfo;
+            debugInfo("Updated room list", activeRooms);
+            updateGameListUI(); 
+        });
+
+        socket.on("gameStart", () => {
+            debugInfo("Game started", {});
+        });
+
+        socket.on("opponentLeftRoom", () => {
+            debugInfo("Game Over");
+            navigateTo('onlineMenu');
+        });
+
+        socket.on("playerJoined", ({ opponentId }) => {
+            if (!opponentId) {
+                console.error("Error: opponentId is required!");
+                return;
+            }
+            opponentIdentifier = opponentId;
+            const numericOpponentId = Number(opponentId);
+            if (isNaN(numericOpponentId)) {
+                console.error(`Error: opponentId (${opponentId}) is not a valid number!`);
+                return;
+            }
+
+            const opponent = findUser(numericOpponentId);
+            if (!opponent) {
+                console.error(`Error: Opponent with ID ${numericOpponentId} not found!`);
+                return;
+            }
+
+            console.log(`Match set: ${numericOpponentId}`);
+        });
+
+        socket.on("playerCount", (count) => {
+            debugInfo("Player count updated", count);
+        });
+    };
+    document.head.appendChild(script);    
+}
+
+// Online mod başladığında bu çağrılmalı:
+if (gameMode === 'online') {
+    initSocket();
+}
+
+function gameStarted() {
+    return new Promise((resolve) => {
+        if (socket) {
+            socket.on("gameStart", () => {
+                resolve(true);
+            });
+        }
+    });
+}
+
+function joinGame(roomId, color) {
+    if (!roomId || !color || !socket) {
+        console.error("[ERROR] Room ID or color is missing, or socket not connected!");
+        return;
+    }
+
+    activeRoomId = roomId;
+    let userId = sessionStorage.getItem("user_id");
+    debugInfo("Sending joinRoom event for room", { userId, roomId, color });
+    socket.emit("joinRoom", { roomId, color, userId });
+    return true;
+}
+
+function leaveRoom() {
+    if (socket) {
+        socket.emit("leaveRoom");
+    }
+}
+
+function getRoomList() {
+    if (socket) {
+        debugInfo("Requesting room list", {});
+        socket.emit("getRooms");
+    }
+}
+
+function getColor() {
+    if (socket) {
+        socket.emit("getColor", selectedRoomId);
+    }
+}
+
+function movePieceSocket(fromRow, fromCol, toRow, toCol) {
+    if (!activeRoomId || !socket) {
+        console.error("[ERROR] No game room selected or socket not connected!");
+        return;
+    }
+    const moveData = {
+        roomId: activeRoomId,
+        from: { row: fromRow, col: fromCol },
+        to: { row: toRow, col: toCol }
+    };
+    debugInfo("Sending move data", moveData);
+    socket.emit("move", moveData);
+}
+    </script>
+    
+    <style>
+
+.game-container {
+    position: relative;
+    width: 100%;
+    height: 98%;
+    padding: 25px;
+    background: rgba(44, 47, 56, 0.9); 
+    border-radius: 15px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); 
+    font-size: 1.1rem;
+    transition: all 0.4s ease-in-out;
+}
+
+.game-container:hover {
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4); 
+}
+
+.board-container {
+    display: flex;
+    width: 100%;
+    height: auto;
+    justify-content: center;
+    align-items: center;
+    margin-top: 15px;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr); 
+    grid-template-rows: repeat(8, 1fr);
+    width: 100%;
+    max-width: 500px;
+    max-height: 500px;
+    border: 3px solid #444; 
+    border-radius: 12px;
+    overflow: hidden;
+    aspect-ratio: 1; 
+    background: #161b22; 
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.6); 
+}
+
+.square {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.3s ease-in-out;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.square:nth-child(odd) {
+    background: #2c2f38; 
+}
+
+.square:nth-child(even) {
+    background: #23272a; 
+}
+
+.square:hover {
+    background: #3d4149; 
+}
+
+.back-button {
+    position: absolute; 
+    top: 10px; 
+    left: 10px; 
+    padding: 10px 15px;
+    font-size: 18px;
+    color: white;
+    background: linear-gradient(90deg, #ff416c, #ff4b2b); 
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    letter-spacing: 1px;
+    transition: all 0.3s ease-in-out;
+    z-index: 10; 
+}
+
+.back-button:hover {
+    background: linear-gradient(90deg, #ff4b2b, #ff416c); 
+    transform: scale(1.05); 
+    box-shadow: 0 6px 15px rgba(255, 75, 43, 0.4); 
+}
+
+.button-undo {
+    position: absolute; 
+    top: 10px; 
+    right: 70px; 
+    padding: 4px 15px 9px 15px;
+    font-size: 20px;
+    color: white;
+    background: linear-gradient(90deg, #ff416c, #ff4b2b); 
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    letter-spacing: 1px;
+    transition: all 0.3s ease-in-out;
+    z-index: 10; 
+}
+
+.button-undo:hover {
+    background: linear-gradient(90deg, #ff4b2b, #ff416c); 
+    transform: scale(1.05);
+    box-shadow: 0 6px 15px rgba(255, 75, 43, 0.4); 
+}
+
+.button-redo {
+    position: absolute; 
+    top: 10px; 
+    right: 10px; 
+    padding: 4px 15px 9px 15px;
+    font-size: 20px;
+    color: white;
+    background: linear-gradient(90deg, #ff416c, #ff4b2b); 
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    letter-spacing: 1px;
+    transition: all 0.3s ease-in-out;
+    z-index: 10; 
+}
+
+.button-redo:hover {
+    background: linear-gradient(90deg, #ff4b2b, #ff416c); 
+    transform: scale(1.05); 
+    box-shadow: 0 6px 15px rgba(255, 75, 43, 0.4); 
+}
+
+.square.black-square {
+    background: linear-gradient(135deg, #1a1a1a, #222); 
+}
+
+.square.white-square {
+    background: linear-gradient(135deg, #2c2f38, #3a3f4b); 
+}
+
+.square:hover {
+    background: radial-gradient(circle, #ffd700 30%, #e6c300 100%); 
+    cursor: pointer;
+    transition: background 0.3s ease-in-out;
+}
+
+.white-piece, .black-piece {
+    width: 75%;
+    height: 75%;
+    border-radius: 50%;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.white-piece:hover, .black-piece:hover {
+    transform: scale(1.15); 
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.5); 
+}
+
+.white-piece {
+    background: radial-gradient(circle, #fff 40%, #eaeaea 100%); 
+    border: 3px solid #bbb;
+}
+
+.black-piece {
+    background: radial-gradient(circle, #222 40%, #111 100%); 
+    border: 3px solid #444;
+}
+
+.highlight {
+    background: radial-gradient(circle, rgba(255, 255, 0, 0.7) 40%, rgba(255, 215, 0, 0.4) 100%); 
+    animation: pulse 1s infinite alternate; 
+}
+
+.highlight-capture {
+    background: radial-gradient(circle, rgba(255, 0, 0, 0.7) 40%, rgba(200, 0, 0, 0.5) 100%); 
+    animation: pulse 1s infinite alternate;
+}
+
+.queen {
+    border: 4px solid gold; 
+    width: 75%;
+    height: 75%;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: gold;
+    font-weight: bold;
+    text-shadow: 1px 1px 5px rgba(255, 215, 0, 0.7); 
+}
+
+.opponent-profile {
+    position: absolute; 
+    top: 10px; 
+    right: 10px; 
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    width: fit-content;
+}
+
+.opponent-profile img {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.opponent-profile p {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.1); }
+}
+
+@media screen and (max-width: 600px) {
+    .game-container {
+        width: 100%;
+        height: 90%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        padding: 0px;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+    }
+
+    .board-container {
+        display: flex;
+        height: auto;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+
+    .board {
+        width: 98%;
+        max-width: 500px;
+        max-height: 500px;
+        aspect-ratio: 1; 
+        border-radius: 8px;
+        border: 2px solid #555;
+    }
+
+    .square {
+        transition: background-color 0.3s ease, transform 0.2s ease; 
+    }
+
+    .square:hover {
+        transform: scale(1.05); /
+    }
+
+    .white-piece, .black-piece {
+        width: 70%; 
+        height: 70%;
+    }
+
+    .queen {
+        width: 70%; 
+        height: 70%;
+        font-size: 18px;
+        text-shadow: 1px 1px 4px rgba(255, 215, 0, 0.5); 
+    }
+}
+
+    </style>
+    <style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #000000, #16213E);
+}
+
+.main-container {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.12);
+    padding: 40px;
+    border-radius: 18px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+    width: 350px;
+    transition: transform 0.4s ease-in-out;
+    display: none;
+    position: relative;
+    overflow: hidden;
+}
+
+.main-container::before {
+    pointer-events: none;
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05), transparent);
+    transform: rotate(25deg);
+}
+
+.main-container:hover {
+    transform: scale(1.05);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+.main-input {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 16px;
+    text-align: center;
+    outline: none;
+    transition: background 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.main-input:focus {
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.main-button {
+    margin-top: 15px;
+    padding: 12px 25px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background: linear-gradient(90deg, #ff416c, #ff4b2b);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.main-button div{
+    margin: 0;
+    padding: 0;
+    position: relative;
+}
+
+.main-button div img {
+    display: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    border: 2px solid white;
+    position: absolute;
+    left: -20px;
+    top: -7px;
+}
+
+.main-button div p {
+    margin-top: 0;
+    margin-left: 0px;
+    font-size: 16px;
+    color: white;
+    font-weight: bold;
+}
+
+.main-button::before {
+    pointer-events: none;
+    content: "";
+    position: absolute;
+    top: -100%;
+    left: -100%;
+    width: 300%;
+    height: 300%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.15), transparent);
+    transform: rotate(25deg);
+    transition: all 0.4s ease-in-out;
+}
+
+.main-button:hover::before {
+    top: 0;
+    left: 0;
+}
+
+.main-button:hover {
+    background: linear-gradient(90deg, #ff4b2b, #ff416c);
+    transform: scale(1.1);
+    box-shadow: 0 5px 15px rgba(255, 75, 43, 0.5);
+}
+
+.main-button:active {
+    transform: scale(0.95);
+}
+
+.main-container h1 {
+    margin-bottom: 20px;
+    color: #ecf0f1;
+    font-size: 32px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 10px rgba(255, 255, 255, 0.2);
+}
+.main-container p{
+    margin-top: 5px;
+    color: white;
+}
+
+.game-list {
+    width: 100%;
+    margin: 10px auto;
+    max-height: 400px;
+    min-height: 300px;
+    overflow-y: auto;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    backdrop-filter: blur(8px);
+    transition: all 0.3s ease-in-out;
+}
+
+.game-list:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.02);
+}
+
+.game-list div {
+    padding: 12px;
+    margin: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    transition: background 0.3s ease-in-out;
+    border-radius: 5px;
+}
+
+.game-list div:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.game-refresh-btn {
+    background: linear-gradient(90deg, #ffa500, #ff7700);
+}
+.game-refresh-btn:hover {
+    background: linear-gradient(90deg, #ff7700, #ffa500);
+}
+
+.game-join-btn {
+    background: linear-gradient(90deg, #008CBA, #005f7f);
+}
+.game-join-btn:hover {
+    background: linear-gradient(90deg, #005f7f, #008CBA);
+}
+
+.game-back-btn {
+    background: linear-gradient(90deg, #f44336, #c73022);
+}
+.game-back-btn:hover {
+    background: linear-gradient(90deg, #c73022, #f44336);
+}
+
+.game-settings-btn {
+    background: linear-gradient(90deg, #ffa500, #cc7a00);
+}
+.game-settings-btn:hover {
+    background: linear-gradient(90deg, #cc7a00, #ffa500);
+}
+
+.game-start-btn {
+    background: linear-gradient(90deg, #4CAF50, #3d8b40);
+}
+.game-start-btn:hover {
+    background: linear-gradient(90deg, #3d8b40, #4CAF50);
+}
+
+.side-selection {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 15px 0;
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.side-selection label {
+    font-size: 20px;
+}
+
+.side-selection select {
+    padding: 8px 12px;
+    font-size: 16px;
+    border: 2px solid #888;
+    border-radius: 5px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.3s ease-in-out;
+    backdrop-filter: blur(6px);
+}
+
+.side-selection select:hover {
+    border-color: #fff;
+}
+
+.side-selection select:focus {
+    border-color: #ffcc00;
+}
+
+.selected-room {
+    background: linear-gradient(90deg, #4CAF50, #3d8b40);
+    color: white;
+    font-weight: bold;
+    border-radius: 5px;
+    padding: 8px;
+}
+
+.loading-spinner-back-button {
+    position: relative;
+    margin-top: 20px;
+    padding: 10px 15px;
+    font-size: 18px;
+    color: white;
+    background: linear-gradient(90deg, #ff416c, #ff4b2b); 
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    letter-spacing: 1px;
+    transition: all 0.3s ease-in-out;
+    z-index: 1000; 
+}
+
+.loading-spinner-back-button:hover {
+    background: linear-gradient(90deg, #ff4b2b, #ff416c); 
+    transform: scale(1.05); 
+    box-shadow: 0 6px 15px rgba(255, 75, 43, 0.4); 
+}
+
+.loading-spinner {
+    margin: 10px auto;
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.auth-input {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 16px;
+    text-align: center;
+    outline: none;
+    transition: background 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.auth-input:focus {
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.profile-picture{
+    display: flex;
+    margin: 0;
+    padding: 0;
+}
+
+.profile-picture img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.profile-elements {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* 🔹 Tüm çocukları yatayda ortalamak için */
+    margin-top: 10px;
+    width: 100%;
+}
+
+.profile-elements p {
+    padding: 0;
+    text-align: center;    
+    font-size: 20px;
+    color: white;
+    line-height: 1.1;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.profile-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+#gameHistoryListContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+}
+
+/* Her bir geçmiş oyun kutusu */
+.game-history-room {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    background-color: #1e1e1e;
+    color: #ffffff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.game-history-room:hover {
+    background-color: #2a2a2a;
+}
+
+/* Açma butonu */
+.open-game-history-button {
+    background-color: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 18px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.open-game-history-button:hover {
+    transform: scale(1.2);
+    color: #ffffff;
+}
+
+/* Tarih metni */
+.game-history-room span {
+    font-size: 16px;
+    color: #ccc;
+    flex-grow: 1;
+}
+/* Renkli sonuç topu */
+.result-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: auto;
+}
+
+/* Kazandıysa yeşil */
+.result-dot.win {
+    background-color: #4caf50;
+}
+
+/* Kaybettiyse kırmızı */
+.result-dot.lose {
+    background-color: #f44336;
+}
+
+#afterEndOfOnlineGameMessage {
+    margin-top: 20px;
+}
+
+#afterEndOfOnlineGameContainer {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}    
+    </style>
+</head>
+<body>
+    <div class="main-container" id="menu">
+        <h1>Checkers</h1>
+        <button class="main-button" onclick="navigateTo('offlineMenu')">Offline</button>
+        <button class="main-button" onclick="navigateTo('onlineMenu')" >Online</button>
+        <button class="main-button" onclick="navigateTo('settingsMenu')">Settings</button>
+        <button class="main-button" id="AccountMenuButtonId" onclick="navigateTo('AccountMenu')" ><div><img id="accountProfilePicture" alt="Avatar" src=""><p id="accountName">Account</p></div></button>
+        <button class="main-button" onclick="window.location.replace('https://google.com')">Exit</button>
+    </div>
+    
+    <div class="main-container" id="offlineMenu">
+        <h1>Select Game Mode</h1>
+        <button class="main-button" onclick="navigateTo('offlineGameContainer')">Two Player</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+    
+    <div class="main-container" id="onlineMenu">
+        <h1>Online Game</h1>
+        <button class="main-button" onclick="navigateTo('quickMatchMenu')">Quick Match</button>
+        <button class="main-button" onclick="navigateTo('gameListMenu')">Game List</button>
+        <button class="main-button" onclick="navigateTo('createGameMenu')">Create Game</button>
+        <button class="main-button" onclick="navigateTo('gameHistoryList')">Game History</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+    
+    <div class="main-container" id="quickMatchMenu">
+        <h1>Quick Match</h1>
+        <button class="main-button" onclick="quickMatch()">Find Match</button>
+        <button class="main-button" onclick="navigateTo('onlineMenu')">Back</button>
+    </div>
+    
+    <div class="main-container" id="gameListMenu">
+        <h1>Game List</h1>
+        
+        <div id="gameListContainer" class="game-list"></div>
+        
+        <div class="button-container">
+            <button class="main-button" onclick="refreshGameList()">↻</button>
+            <button class="main-button" onclick="joinGameFromList()">►</button>
+            <button class="main-button" style="padding-left: 25px; padding-right: 25px; padding-top: 10px; padding-bottom: 12px;" onclick="navigateTo('onlineMenu')">⬅</button>
+        </div>
+    </div>
+
+    <div class="main-container" id="gameHistoryList">
+        <h1>Game History</h1>
+        
+        <div id="gameHistoryListContainer" class="game-list"></div>
+        
+        <div class="button-container">
+            <button class="main-button"   style="padding-left: 25px; padding-right: 25px; padding-top: 10px; padding-bottom: 12px;" onclick="navigateTo('onlineMenu') ">⬅</button>
+        </div>
+    </div>
+    
+    <div class="main-container" id="createGameMenu">
+        <h1>Create Game</h1>
+    
+        <div class="side-selection">
+            <label for="side">Choose Your Side:</label>
+            <select id="side" class="main-input">
+                <option value="white">⚪ White</option>
+                <option value="black">⚫ Black</option>
+            </select>
+        </div>
+    
+        <div class="button-container">
+            <button class="main-button" onclick="startNewGame()">🚀 Start</button>
+            <button class="main-button" onclick="navigateTo('onlineMenu')">⬅ Back</button>
+        </div>
+    </div>
+    
+    <div class="main-container" id="settingsMenu">
+        <h1>Settings</h1>
+        <button class="main-button" onclick="adjustSound()">Sound Settings</button>
+        <button class="main-button" onclick="adjustGraphics()">Graphics Settings</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+
+    <div class="game-container" id="offlineGameContainer">
+        <button class="back-button" onclick="navigateTo('offlineMenu')">Back</button>
+        <button class="button-undo" id="undoButton" onclick="undoLastMove()">⏪︎</button>
+        <button class="button-redo" id="redoButton" onclick="redoLastMove()">⏩︎</button>
+        <div class="board-container">
+            <div id="winner-display"></div>
+            <div class="board" id="offlineGameBoard"></div>
+        </div>
+    </div>
+    
+    <div class="game-container" id="onlineGameContainer">
+        <button class="back-button" onclick="navigateTo('onlineMenu')">Back</button>
+
+        <div class="opponent-profile" id="opponentProfile">
+            <img id="opponentAvatar" alt="Opponent Avatar">
+            <p id="opponentName">Opponent</p>
+        </div>
+
+        <div class="board-container">
+            <div id="winner-display"></div>
+            <div class="board" id="onlineGameBoard"></div>
+        </div>
+    </div>
+
+    <div class="game-container" id="reviewGameContainer">
+        <button class="back-button" onclick="navigateTo('gameHistoryList')">Back</button>
+        <button class="button-undo" id="undoButton" onclick="undoLastMove()">⏪︎</button>
+        <button class="button-redo" id="redoButton" onclick="redoLastMove()">⏩︎</button>
+        <div class="board-container">
+            <div id="winner-display"></div>
+            <div class="board" id="reviewGameBoard"></div>
+        </div>
+    </div>
+
+    <div class="main-container" id="afterEndOfOnlineGameContainer">
+        <h1 id="afterEndOfOnlineGameMessage">Game Over! White player wins.</h1>
+        <button class="loading-spinner-back-button" onclick="navigateTo('onlineMenu')">Back</button>
+        <button class="loading-spinner-back-button" onclick="navigateTo('gameHistoryList')">Game History</button>
+    </div>
+
+    <div class="main-container" id="waitingScreen">
+        <h1 id="waitingScreenContent">Waiting for opponent...</h1>
+        <div class="loading-spinner"></div>
+        <button class="loading-spinner-back-button" onclick="navigateTo('onlineMenu')">Back</button>
+    </div>
+
+    <div class="main-container" id="waitingScreenForAuth">
+        <h1 id="waitingScreenContentForAuth">Waiting for opponent...</h1>
+        <div class="loading-spinner"></div>
+    </div>
+
+    <div class="main-container" id="AccountMenu">
+        <h1>ACCOUNT SECTION</h1>
+        <button class="main-button" onclick="navigateTo('signupMenu')">Sign Up</button>
+        <button class="main-button" onclick="navigateTo('loginMenu')">Log In</button>
+        <button class="main-button" onclick="navigateTo('sendCodeMenu')">Reset Password</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+
+    <div class="main-container" id="PersonalAccountMenu">
+        <div class="profile-container">
+        <div class="profile-picture"><img id="accountProfilePicture" alt="Avatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAAELklEQVR4nO3dS27bMBRA0aToUrOsLEjL6qAF+otjxZIskfeccYE+Au+KhCd5XZblBaq+nT0AnEkApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIO372QO0vL+/r/lnb29vR0/CT6/Lspw9w+RWLv0tYjiUAI6yce//p4QjCGBnu+/9/5SwIwHs5gmr/ycZ7EIAO3jy6v9JBhv5GXSrE7f/9P99Am6Ax11q+VwFj3EDPOhS2/9yvXlGIYBHXHPbrjnVxXkCfc0QS+Y5tJ4b4AuG2P6Xcea8AgGsNdZWjTXtiQSwyoj7NOLMzycA0gRw37if0nEnfxoB3DH6Do0+/9EE8Jk5tmeOUxxEAKQJ4KaZPpwznWVfAvjYfBsz34l2IQDSBPCBWT+Ws55rCwGQJoB/zf2ZnPt0DxAAaQIgTQB/KbwQCmdcTwCkCYA0AfzWeRt0TnqXAEgTAGkCIE0Av9SexbXz3iIA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAvil9oflaue9RQCkCYA0AZAmgN86z+LOSe8SAGkCIE0Afym8DQpnXE8ApAmANAH8a+4Xwtyne4AASBPAB2b9TM56ri0EQJoAPjbfx3K+E+1CADfNtDEznWVfAiBNAJ+Z48M5xykOIoA7Rt+e0ec/mgDuG3eHxp38aQRAmgBWGfFTOuLMzyeAtcbap7GmPZEAvmCUrRplzit4XZbl7BnGc9m/MGf1v8oN8Ihr7tk1p7o4ATzoatt2tXlG4Qm01enPIau/hRtgq3P3z/Zv5AbYzZOvAqu/CwHs7AkZWP0dCeAou5dg748ggMNtLMHeH2rCAE7/WWZukwXpVyDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBEDa67IsZ88Ap3EDkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0n4AQKq0cz+AeSEAAAAASUVORK5CYII="></div>
+        <div class="profile-elements">
+            <p id="accountProfileName">Name: Name</p>
+            <p id="accountProfileEmail">Email: Email.com</p>
+            <p id="accountProfileBirthyear">Birthyear: 2000</p>
+        </div>
+        </div>
+        <button class="main-button" onclick="logOut()">Log Out</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+
+    <div class="main-container" id="loginMenu">
+        <h1>Log In</h1>
+        <form id="loginForm">
+            <input type="text" id="loginUserEmail" class="auth-input" placeholder="Useremail" required>
+            <input type="password" id="loginPassword" class="auth-input" placeholder="Password" required>
+            <button type="submit" class="main-button">Log In</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>
+
+    <div class="main-container" id="sendCodeMenu">
+        <h1>Resresh Password</h1>
+        <form id="sendCodeForm">
+            <input type="email" id="sendCodeEmail" class="main-input" placeholder="Enter your email" required>
+            <button type="submit" class="main-button">Send Code</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>
+
+    <div class="main-container" id="verifyMenuForRefreshPassword">
+        <h1>Verify Code</h1>
+        <form id="verifyRefreshPasswordForm">
+            <input type="text" id="verificationCodeForRefreshPassword" class="main-input" placeholder="Enter verification code" required>
+            <button type="submit" class="main-button">Verify</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>
+
+    <div class="main-container" id="refreshPasswordMenu">
+        <h1>Reset Password</h1>
+        <form id="refreshPasswordForm">
+            <input type="password" id="newPassword" class="main-input" placeholder="Enter new password" required>
+            <input type="password" id="confirmNewPassword" class="main-input" placeholder="Confirm new password" required>
+            <button type="submit" class="main-button">Reset Password</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>    
+    
+    <div class="main-container" id="signupMenu">
+        <h1>Sign Up</h1>
+        <form id="signupForm">
+            <input type="text" id="signupUsername" class="main-input" placeholder="Enter username" required>
+            <input type="email" id="signupUserEmail" class="main-input" placeholder="Enter email" required>
+            <input type="number" id="signupUserDate" class="main-input" placeholder="Enter birthyear" required>
+            <input type="password" id="signupPassword" class="main-input" placeholder="Enter password" required>
+            <input type="password" id="confirmPassword" class="main-input" placeholder="Confirm password" required>
+            <button type="submit" class="main-button">Sign Up</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>
+       
+    <div class="main-container" id="verifyMenuForSignup">
+        <h1>Verify Code</h1>
+        <form id="verificationFormForSignup">
+            <input type="text" id="verificationCodeForSignup" class="main-input" placeholder="Enter verification code" required>
+            <button type="submit" class="main-button">Verify</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('Account Menu')">Account Menu</a></p>
+    </div>    
+    
+    <script>
+document.addEventListener("DOMContentLoaded", function() {
+    document.getElementById("signupForm").addEventListener("submit", signUp);
+    document.getElementById("verificationFormForSignup").addEventListener("submit", verifyCodeForSignup);
+    document.getElementById("loginForm").addEventListener("submit", logIn);
+    document.getElementById("sendCodeForm").addEventListener("submit", sendVerifyCode);
+    document.getElementById("verifyRefreshPasswordForm").addEventListener("submit", verifyMenuForRefreshPassword);
+    document.getElementById("refreshPasswordForm").addEventListener("submit", refreshPassword);
+});
+
+async function signUp(event) {
+    event.preventDefault();
+
+    const name = document.getElementById("signupUsername").value.trim();
+    const email = document.getElementById("signupUserEmail").value.trim();
+    const birthyear = document.getElementById("signupUserDate").value;
+    const password = document.getElementById("signupPassword").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+
+    if (!name || !email || !birthyear || !password || !confirmPassword) {
+        alert("All fields are required!");
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        alert("Passwords do not match!");
+        return;
+    }
+
+    const defaultProfilePicture = "iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAAELklEQVR4nO3dS27bMBRA0aToUrOsLEjL6qAF+otjxZIskfeccYE+Au+KhCd5XZblBaq+nT0AnEkApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIO372QO0vL+/r/lnb29vR0/CT6/Lspw9w+RWLv0tYjiUAI6yce//p4QjCGBnu+/9/5SwIwHs5gmr/ycZ7EIAO3jy6v9JBhv5GXSrE7f/9P99Am6Ax11q+VwFj3EDPOhS2/9yvXlGIYBHXHPbrjnVxXkCfc0QS+Y5tJ4b4AuG2P6Xcea8AgGsNdZWjTXtiQSwyoj7NOLMzycA0gRw37if0nEnfxoB3DH6Do0+/9EE8Jk5tmeOUxxEAKQJ4KaZPpwznWVfAvjYfBsz34l2IQDSBPCBWT+Ws55rCwGQJoB/zf2ZnPt0DxAAaQIgTQB/KbwQCmdcTwCkCYA0AfzWeRt0TnqXAEgTAGkCIE0Av9SexbXz3iIA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAvil9oflaue9RQCkCYA0AZAmgN86z+LOSe8SAGkCIE0Afym8DQpnXE8ApAmANAH8a+4Xwtyne4AASBPAB2b9TM56ri0EQJoAPjbfx3K+E+1CADfNtDEznWVfAiBNAJ+Z48M5xykOIoA7Rt+e0ec/mgDuG3eHxp38aQRAmgBWGfFTOuLMzyeAtcbap7GmPZEAvmCUrRplzit4XZbl7BnGc9m/MGf1v8oN8Ihr7tk1p7o4ATzoatt2tXlG4Qm01enPIau/hRtgq3P3z/Zv5AbYzZOvAqu/CwHs7AkZWP0dCeAou5dg748ggMNtLMHeH2rCAE7/WWZukwXpVyDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBEDa67IsZ88Ap3EDkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0n4AQKq0cz+AeSEAAAAASUVORK5CYII=";
+
+    const payload = {
+        name,
+        email,
+        birthyear,  
+        password,
+        profilePicture: defaultProfilePicture 
+    };
+
+    document.getElementById("waitingScreenContentForAuth").innerHTML = "Waiting for send verification code...";
+    navigateTo('waitingScreenForAuth');
+
+    try {
+        const response = await fetch("http://127.0.0.1:9090/api/users/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        console.log("Raw Response:", response);
+
+        let data;
+        try {
+            data = await response.json();
+            console.log("Parsed Response:", data);
+        } catch (error) {
+            console.error("Invalid JSON response:", data, error);
+            alert("Invalid response from server: " + data);
+            return;
+        }
+
+        if (!response.ok) {
+            const errorMessage = data?.error || "An error occurred while registering.";
+            navigateTo('signupMenu');
+            alert(errorMessage);
+            console.log(errorMessage);
+            return;
+        }
+
+        if (data.jwt_token) {
+            sessionStorage.setItem("authToken", data.jwt_token);
+        }
+
+        if (data.message) {
+            alert(data.message);
+            navigateTo("verifyMenuForSignup");
+        }
+    } catch (error) {
+        alert("An unexpected error occurred: " + error.message);
+        navigateTo('signupMenu');
+    }
+}
+
+async function verifyCodeForSignup(event) {
+    event.preventDefault(); 
+
+    const code = document.getElementById("verificationCodeForSignup").value.trim();
+    const token = sessionStorage.getItem("authToken");
+
+    if (!code) {
+        alert("All fields are required!");
+        return;
+    }
+
+    try {
+        const response = await fetch("http://127.0.0.1:9090/api/users/verifyForRegister", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, token })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Something went wrong.");
+        }
+
+        if (data.message) {
+            alert(data.message);
+            navigateTo("loginMenu");
+        } 
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function logIn(event) {
+    event.preventDefault(); 
+
+    const email = document.getElementById("loginUserEmail").value.trim();
+    const password = document.getElementById("loginPassword").value.trim();
+
+    if (!email || !password) {
+        alert("All fields are required!");
+        return;
+    }
+
+    try {
+        const response = await fetch("http://127.0.0.1:9090/api/users/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Something went wrong.");
+        }
+
+        if (data.jwt_token) {
+            sessionStorage.setItem("authToken", data.jwt_token);
+        }
+
+        if (data.user_id) {
+            sessionStorage.setItem("user_id", data.user_id);
+        }
+
+        if (data.message) {
+            updateAccountUI(data.profilePicture,data.name,data.email, data.birthyear);
+            navigateTo("menu");
+        } 
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function logOut() {
+    sessionStorage.clear("authToken");
+    sessionStorage.clear("authToken");
+    sessionStorage.clear("user_id");
+    updateAccountUI("", "", "", "");
+    navigateTo("menu");
+}
+
+async function sendVerifyCode(event) {
+    event.preventDefault();
+
+    const email = document.getElementById("sendCodeEmail").value.trim();
+
+    if (!email) {
+        alert("All fields are required!");
+        return;
+    }
+
+    const payload = {
+        email,
+    };
+
+    document.getElementById("waitingScreenContentForAuth").innerHTML = "Waiting for send verification code...";
+    navigateTo('waitingScreenForAuth');
+
+    try {
+        const response = await fetch("http://127.0.0.1:9090/api/users/changeCode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        
+        let data;
+        try {
+            data = await response.json();
+        } catch (error) {
+            console.error("Invalid JSON response:", data, error);
+            alert("Invalid response from server: " + data);
+            return;
+        }
+    
+        if (!response.ok) {
+            navigateTo('sendCodeMenu');
+            const errorMessage = data?.error || "An error occurred while registering.";
+            alert(errorMessage);
+            console.log(errorMessage);
+            return;
+        }
+    
+        if (data.jwt_token) {
+            sessionStorage.setItem("authToken", data.jwt_token);
+        }
+    
+        if (data.message) {
+            alert(data.message);
+            navigateTo("verifyMenuForRefreshPassword");            
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        alert("An unexpected error occurred: " + error.message);
+    }
+}
+
+async function verifyMenuForRefreshPassword(event) {
+    event.preventDefault(); 
+
+    const code = document.getElementById("verificationCodeForRefreshPassword").value.trim();
+    const token = sessionStorage.getItem("authToken");
+
+    if (!code) {
+        alert("All fields are required!");
+        return;
+    }
+
+    try {
+        const response = await fetch("http://127.0.0.1:9090/api/users/verifyForChangeCode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, token })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Something went wrong.");
+        }
+
+        if (data.message) {
+            alert(data.message);
+            navigateTo("refreshPasswordMenu");
+        } 
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function refreshPassword(event) {
+    event.preventDefault(); 
+
+    const password = document.getElementById("newPassword").value;
+    const confirmPassword = document.getElementById("confirmNewPassword").value;
+    const token = sessionStorage.getItem("authToken");
+
+    if (!password) {
+        alert("All fields are required!");
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        alert("Passwords do not match!");
+        return;
+    }
+
+    try {
+        const response = await fetch("http://127.0.0.1:9090/api/users/changeCodeEnd", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Something went wrong.");
+        }
+
+        if (data.message) {
+            alert(data.message);
+            navigateTo("loginMenu");
+        } 
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function findUser(id) {
+    if (!id) {
+        alert("User ID is required!");
+        return;
+    }
+
+    try {
+        const response = await fetch(`http://127.0.0.1:9090/api/users/search?id=${encodeURIComponent(id)}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Something went wrong.");
+        }
+
+        const data = await response.json();
+        console.log("Response Data:", data);
+
+        if (data && data.name && data.profilePicture) {
+            const profilePicture = data.profilePicture;
+            const userName = data.name;
+            updateOpponentProfile(profilePicture, userName);
+        } else {
+            alert("User not found.");
+        }
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+        console.error("Fetch error:", error);
+    }
+}
+
+async function saveGameData(turnData, winner) {
+    const owner = sessionStorage.getItem("user_id");
+    const whitePlayer = yourColor === "white" ? owner : opponentIdentifier;
+    const blackPlayer = yourColor === "black" ? owner : opponentIdentifier;
+
+    console.log("Saving game data:", {
+        owner,
+        whitePlayer,
+        blackPlayer,
+        winner: winner === yourColor ? owner : opponentIdentifier,
+        turnData,
+    });
+    if (!owner) {
+        alert("owner is not defined. Please log in to save the game.");
+        return;
+    }
+    if (!whitePlayer || !blackPlayer) {
+        alert("Players are not defined. Please ensure both players are set.");
+        return;
+    }
+    if (!turnData || !Array.isArray(turnData) || turnData.length === 0) {
+        alert("Turn data is invalid or empty. Please ensure the game has valid moves.");
+        return;
+    }
+    if (!winner) {
+        alert("Winner is not defined. Please ensure the game has a winner.");
+        return;
+    }
+
+    const gameData = {
+        owner,
+        whitePlayer,
+        blackPlayer,
+        winner: winner === yourColor ? owner : opponentIdentifier,
+        gameData: JSON.stringify(turnData)
+    };
+
+    try {
+        const response = await fetch("http://127.0.0.1:9090/api/games/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(gameData)
+        });
+
+        console.log("Raw Response:", response);
+
+        let data;
+        try {
+            data = await response;
+            console.log("Parsed Response:", data);
+        } catch (error) {
+            console.error("Invalid JSON response:", data, error);
+            alert("Invalid response from server: " + data);
+            return;
+        }
+
+        if (!response.ok) {
+            const errorMessage = data?.error || "An error occurred while registering.";
+            alert(errorMessage);
+            console.log(errorMessage);
+            return;
+        }
+
+        if (data.message) {
+            alert(data.message);
+            navigateTo("onlineGameContainer");
+        }
+    } catch (error) {
+        alert("An unexpected error occurred: " + error.message);
+    }
+}
+
+async function getGameHistoryList() {
+    const userId = sessionStorage.getItem("user_id");
+    if (!userId) {
+        alert("Please log in to view game history.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`http://127.0.0.1:9090/api/games/search?owner=${encodeURIComponent(userId)}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await response.json();
+        console.log("Response Data:", data);
+
+        if (data) {
+            updateGameHistoryListUI(data);
+        }
+
+    } catch (error) {
+        console.error("Fetch error:", error);
+    }
+}
+    </script>
+    <script>
+document.addEventListener("DOMContentLoaded", function () {
+    const pages = ["menu", "offlineMenu", "onlineMenu", "quickMatchMenu", "gameListMenu", "createGameMenu", 
+    "settingsMenu", "offlineGameContainer", "onlineGameContainer", "waitingScreen", "waitingScreenForAuth"
+    , "loginMenu", "signupMenu", "sendCodeMenu", "verifyMenuForRefreshPassword", "refreshPasswordMenu",
+    "verifyMenuForSignup", "AccountMenu", "PersonalAccountMenu", "gameHistoryList", "reviewGameContainer",
+    "afterEndOfOnlineGameContainer"];
+    
+    function navigateTo(page) {
+        pages.forEach(p => {
+            document.getElementById(`${p}`).style.display = (p === page) ? "block" : "none";
+        });
+        sessionStorage.setItem("currentPage", page);
+        defoultActions(page);
+    }
+    function defoultActions(page) {
+        if (page === 'menu') {
+            if (socket && !socket.disconnected) {
+                socket.disconnect();
+            }            
+        }
+        if (page === 'gameListMenu' || page === 'quickMatchMenu') {
+            refreshGameList(); 
+        }
+        if (page === 'gameHistoryList') {
+            getGameHistoryList(); 
+        }
+        if (page === 'quickMatchMenu' || page === 'gameListMenu' || page === 'createGameMenu' || page === 'onlineMenu') {
+            if (activeRoomId) {
+                leaveRoom(); 
+            }
+        }
+        if (page === 'quickMatchMenu' || page === 'gameListMenu' || page === 'createGameMenu') {
+            if (!socket || socket.disconnected) {
+                alert("Socket is disconnected, initializing..."); 
+                navigateTo('onlineMenu');
+            }
+        }
+        if (page === 'onlineMenu') {
+            if (!userDefined) {
+                alert('Please log in before accessing the online mode.');
+                navigateTo('menu');
+                return;
+            }
+
+            if (!socket || socket.disconnected) {
+                initSocket();
+            }
+        }
+        if (page === 'offlineGameContainer') {
+            document.getElementById('offlineGameContainer').style.display = "flex";
+            playTwoPlayer(); 
+        }
+        if (page === 'reviewGameContainer') {
+            document.getElementById('reviewGameContainer').style.display = "flex";
+        }
+        if (page === 'onlineGameContainer') {
+            document.getElementById('onlineGameContainer').style.display = "flex";
+        }
+
+    }
+    if (sessionStorage.getItem("currentPage")) {
+        navigateTo(sessionStorage.getItem("currentPage"));
+    } else {
+        navigateTo("menu");
+    }
+
+    window.navigateTo = navigateTo;
+});
+
+    </script>
+    <script>
+let userDefined;
+let selectedRoomId; 
+
+function playTwoPlayer() {
+    gameMode = 'offline'; 
+    resetGame('white'); 
+}
+
+async function quickMatch() {
+    await getRoomList(); 
+    gameMode = 'online'; 
+
+    if (activeRooms.length === 0) {
+        alert('Boş oda yok'); 
+        return;
+    }
+
+    document.getElementById("waitingScreenContent").innerHTML = "Searching for an opponent...";
+    navigateTo('waitingScreen');
+
+    for (let i = 0; i < activeRooms.length; i++) {
+        selectedRoomId = activeRooms[i]['roomId']; 
+
+        console.log("Odaya bağlanmaya çalışılıyor, roomId:", selectedRoomId);
+
+        try {
+            yourColor = activeRooms[i]['nextColor']; 
+
+            if (joinGame(selectedRoomId, yourColor)) {
+                console.log(`Başarıyla ${selectedRoomId} odasına katıldın!`); 
+                navigateTo('onlineGameContainer');
+                resetGame(yourColor,"onlineGameBoard"); 
+                return;
+            } else {
+                console.log(`joinGame başarısız oldu: roomId=${selectedRoomId}, color=${yourColor}`);
+            }
+        } catch (error) {
+            console.error(`Renk alınırken hata oluştu: ${error}`); 
+        }
+    }
+}
+
+async function startNewGame() {
+    gameMode = 'online'; 
+    yourColor = document.getElementById("side").value; 
+    let roomId = Math.random().toString(36).substr(2, 9); 
+    console.log("Seçilen taraf:", yourColor);
+    joinGame(roomId, yourColor);
+    document.getElementById("waitingScreenContent").innerHTML = "Waiting for opponent...";
+    navigateTo('waitingScreen');
+    await gameStarted();
+    navigateTo('onlineGameContainer');
+    resetGame(yourColor,"onlineGameBoard"); 
+}
+
+async function finishGame(winner) {
+    document.getElementById("onlineGameContainer").style.opacity = "0.1";
+    document.getElementById("afterEndOfOnlineGameContainer").style.display = "block";
+
+    document.getElementById("afterEndOfOnlineGameMessage").innerText = `Game Over! ${winner} player wins.`;
+}
+
+async function joinGameFromList() {
+    gameMode = 'online'; 
+    let roomId = selectedRoomId; 
+    if (roomId) {
+    console.log("Seçilen taraf:", yourColor);
+    joinGame(roomId, yourColor); 
+    document.getElementById("waitingScreenContent").innerHTML = "Preparing the game...";
+    navigateTo('waitingScreen');
+    await gameStarted();
+    navigateTo('onlineGameContainer');
+    resetGame(yourColor,"onlineGameBoard"); 
+    }
+}
+
+function adjustSound() {
+    alert("Ses ayarları açılıyor!"); 
+}
+
+function adjustGraphics() {
+    alert("Grafik ayarları açılıyor!"); 
+}
+
+function refreshGameList() {
+    getRoomList(); 
+}
+
+function updateGameListUI() {
+    const gameListContainer = document.getElementById("gameListContainer");
+    gameListContainer.innerHTML = ""; 
+
+    activeRooms.forEach(room => {
+        const roomDiv = document.createElement("div");
+        roomDiv.classList.add("game-room"); 
+        roomDiv.textContent = room['roomId']; 
+
+        roomDiv.addEventListener("click", () => selectFromList(room['roomId'], roomDiv));
+
+        gameListContainer.appendChild(roomDiv);
+    });
+}
+
+function updateGameHistoryListUI(data) {
+    const gameHistoryListContainer = document.getElementById("gameHistoryListContainer");
+    gameHistoryListContainer.innerHTML = "";
+
+    const fragment = document.createDocumentFragment();
+
+    data.forEach(({ gameData, date, owner, whitePlayer, winner }) => {
+        const roomDiv = document.createElement("div");
+        roomDiv.classList.add("game-history-room");
+
+        const openButton = document.createElement("button");
+        openButton.textContent = "►";
+        openButton.classList.add("open-game-history-button");
+        openButton.addEventListener("click", () => openGameFromHistory(gameData, date, owner, whitePlayer, winner));
+
+        const dateSpan = document.createElement("span");
+        dateSpan.textContent = date;
+
+        const resultDot = document.createElement("div");
+        resultDot.classList.add("result-dot");
+        resultDot.classList.add(owner === winner ? "win" : "lose");
+
+        roomDiv.appendChild(openButton);
+        roomDiv.appendChild(dateSpan);
+        roomDiv.appendChild(resultDot);
+        fragment.appendChild(roomDiv);
+    });
+
+    gameHistoryListContainer.appendChild(fragment);
+}
+
+function selectFromList(roomId, roomElement) {
+    document.querySelectorAll(".game-room").forEach(div => {
+        div.classList.remove("selected-room");
+    });
+
+    selectedRoomId = roomId;
+    getColor(); 
+    roomElement.classList.add("selected-room"); 
+
+    console.log(`Seçilen oda: ${selectedRoomId}`);
+}
+
+function updateOpponentProfile(profilePicture, userName) {
+    const opponentNameElement = document.getElementById("opponentName");
+    if (opponentNameElement) {
+        opponentNameElement.textContent = userName; 
+    }
+
+    const opponentAvatarElement = document.getElementById("opponentAvatar");
+    if (opponentAvatarElement && profilePicture) {
+        opponentAvatarElement.src = `data:image/jpeg;base64,${profilePicture}`; 
+    }
+}
+
+function updateAccountUI(profilePicture, userName, email, birthyear) {
+    userDefined = true
+    const nameElement = document.getElementById("accountName");
+    const profileNameElement = document.getElementById("accountProfileName");
+    const emailElement = document.getElementById("accountProfileEmail");
+    const birthyearElement = document.getElementById("accountProfileBirthyear");
+
+    if (userName !== '') {
+        nameElement.textContent = userName; 
+        nameElement.style.marginLeft = '20px';
+    } else {
+        nameElement.textContent = 'Account'; 
+        nameElement.style.marginLeft = '0px';
+    }
+    
+    profileNameElement.textContent = 'Name: ' + userName;
+    birthyearElement.textContent = 'Birthyear: ' + birthyear;
+    emailElement.textContent = 'Email: ' + email;
+
+    const avatarElement = document.getElementById("accountProfilePicture");
+    if (avatarElement && profilePicture !== '') {
+        avatarElement.style.display = 'block';
+        avatarElement.src = `data:image/jpeg;base64,${profilePicture}`; 
+    } else {
+        avatarElement.style.display = 'none';
+        avatarElement.src = ''
+    }
+
+    const AccountMenu = document.getElementById("AccountMenuButtonId");
+    if (AccountMenu && userName !== '' && email !== '' && birthyear !== '') {
+        AccountMenu.onclick = function () { navigateTo('PersonalAccountMenu');};
+    } else {
+        AccountMenu.onclick = function () { navigateTo('AccountMenu');};
+    }
+
+}
+
+function openGameFromHistory(gameData, date, owner, whitePlayer, winner) {
+    if (!gameData) {
+        alert("No game data found.");
+        return;
+    }
+
+    const parsedGameData = JSON.parse(gameData);
+    console.log("Parsed Game Data:", parsedGameData);
+
+    resetGame(owner === winner ? 'white' : 'black', 'reviewGameBoard', parsedGameData); 
+
+    navigateTo('reviewGameContainer');
+
+}
+
+    </script>
+    <script>
+        
+function createBoard(color,boardLocation) {
+    const board = document.getElementById(boardLocation);
+    const boardFragment = document.createDocumentFragment(); 
+    const boardArray = []; 
+
+    if (color === 'white') {
+        let id = 0;
+        for (let row = 1; row <= 8; row++) {
+            for (let col = 1; col <= 8; col++) {
+                const square = document.createElement("div"); 
+                square.dataset.row = row; 
+                square.dataset.col = col; 
+                square.classList.add("square"); 
+
+                if ((row + col) % 2 === 0) {
+                    square.classList.add("white-square"); 
+                } else {
+                    square.classList.add("black-square"); 
+                    id++;
+                    if (row < 4) { 
+                        const piece = document.createElement("div");
+                        piece.classList.add("black-piece"); 
+                        piece.dataset.id = id;
+                        square.appendChild(piece); 
+                    } else if (row > 5) { 
+                        const piece = document.createElement("div");
+                        piece.classList.add("white-piece"); 
+                        piece.dataset.id = id;
+                        square.appendChild(piece); 
+                    }
+                }
+
+                boardFragment.appendChild(square); 
+                boardArray.push(square); 
+            }
+        }
+
+    } else { 
+        let id = 24;
+        for (let row = 8; row >= 1; row--) {
+            for (let col = 8; col >= 1; col--) {
+                const square = document.createElement("div"); 
+                square.dataset.row = row; 
+                square.dataset.col = col; 
+                square.classList.add("square"); 
+
+                if ((row + col) % 2 === 0) {
+                    square.classList.add("white-square"); 
+                } else {
+                    square.classList.add("black-square"); 
+                    id--;
+                    if (row < 4) { 
+                        const piece = document.createElement("div");
+                        piece.classList.add("black-piece"); 
+                        piece.dataset.id = id;
+                        square.appendChild(piece); 
+                    } else if (row > 5) { 
+                        const piece = document.createElement("div");
+                        piece.classList.add("white-piece"); 
+                        piece.dataset.id = id;
+                        square.appendChild(piece); 
+                    }
+                }
+
+                boardFragment.appendChild(square); 
+                boardArray.push(square); 
+            }
+        }
+    }
+
+    board.appendChild(boardFragment); 
+    return boardArray; 
+}
+
+    </script>
+    <script>
+let selectedPiece = null;
+let currentPlayer = "white";
+let whiteCapturedPieces = 0;
+let blackCapturedPieces = 0;
+let turnCount = 0;
+let turnData = [];
+
+
+function saveTurnData(fromX, fromY, toX, toY, type = "onlyMove", capturedData) {
+    turnData = turnData.filter(turn => turn.turn <= turnCount);
+    
+    let movedPiece = document.querySelector(`[data-row='${fromX}'][data-col='${fromY}'] div`);
+    let pieceId = movedPiece ? movedPiece.dataset.id : null;
+
+    let turnInfo = {
+        turn: ++turnCount,
+        from: [fromX, fromY],
+        to: [toX, toY],
+        player: currentPlayer,
+        pieceId: pieceId,
+        type: type
+    };
+
+    if (type === "capture") {
+        if (capturedData) {
+            turnInfo.captured = {
+                position: [capturedData.row, capturedData.col],
+                player: capturedData.player,
+                wasQueen: capturedData.wasQueen
+            };
+        } else {
+            console.warn("Capture move made, but no captured piece provided!");
+        }
+    }
+
+    turnData.push(turnInfo);
+    console.log(`Turn ${turnCount}:`, turnInfo);
+}
+
+function undoLastMove() {
+    if (turnData.length === 0 || turnCount === 0) {
+        console.warn("No moves to undo.");
+        return;
+    }
+
+    let lastMove = turnData[turnCount - 1];
+    let { from, to, player, type, captured } = lastMove;
+
+    let fromSquare = document.querySelector(`[data-row='${from[0]}'][data-col='${from[1]}']`);
+    let toSquare = document.querySelector(`[data-row='${to[0]}'][data-col='${to[1]}']`);
+    let movedPiece = toSquare ? toSquare.querySelector(".white-piece, .black-piece") : null;
+
+    if (!movedPiece) {
+        console.error("No piece found to move back!");
+        return;
+    }
+
+    if (movedPiece && movedPiece.classList.contains("queen")) {
+        let wasAlwaysQueen = false;
+        let player = movedPiece.classList.contains("white-piece") ? "white" : "black";
+        let targetRow = player === "white" ? 1 : 8;
+        let pieceId = movedPiece.dataset.id; 
+    
+        for (let i = 0; i < turnCount-1; i++) {
+            let move = turnData[i];
+    
+            if (move.player === player && move.to[0] === targetRow && move.pieceId == pieceId) {
+                wasAlwaysQueen = true;
+                break;
+            }
+        }
+    
+        if (!wasAlwaysQueen) {
+            movedPiece.classList.remove("queen");
+        }
+    }    
+
+    fromSquare.appendChild(movedPiece);
+
+    if (captured && captured.position) {
+        let capturedSquare = document.querySelector(`[data-row='${captured.position[0]}'][data-col='${captured.position[1]}']`);
+        
+        if (capturedSquare) {
+            let restoredPiece = document.createElement("div");
+            restoredPiece.classList.add(player === "white" ? "black-piece" : "white-piece");
+
+            if (captured.wasQueen) {
+                restoredPiece.classList.add("queen");
+            }
+
+            if (player === "white") {
+                whiteCapturedPieces = Math.max(0, whiteCapturedPieces - 1);
+            } else {
+                blackCapturedPieces = Math.max(0, blackCapturedPieces - 1);
+            }
+
+            capturedSquare.appendChild(restoredPiece);
+        } else {
+            console.error("Captured square not found.");
+        }
+    }
+
+    currentPlayer = currentPlayer === "white" ? "black" : "white";
+    turnCount--;
+
+    console.log(`Move undone: Player ${player} move ${turnCount} reverted.`);
+}
+
+function redoLastMove() {
+    if (!Array.isArray(turnData) || turnData.length === 0) {
+        console.warn("No moves to redo.");
+        return;
+    }
+
+    if (turnCount >= turnData.length) {
+        console.warn("No moves to redo.");
+        return;
+    }
+
+    let nextMove = turnData[turnCount];
+    let { from, to, player, type, captured } = nextMove;
+
+    let fromSquare = document.querySelector(`[data-row='${from[0]}'][data-col='${from[1]}']`);
+    let toSquare = document.querySelector(`[data-row='${to[0]}'][data-col='${to[1]}']`);
+    
+    if (!fromSquare || !toSquare) {
+        console.error("Invalid move positions.");
+        return;
+    }
+
+    let movedPiece = fromSquare.querySelector(".white-piece, .black-piece");
+
+    if (!movedPiece) {
+        console.error("No piece found to move ahead!");
+        return;
+    }
+
+    let movedPlayer = movedPiece.classList.contains("white-piece") ? "white" : "black";
+    let targetRow = movedPlayer === "white" ? 1 : 8;
+
+    if (to[0] === targetRow) {
+        movedPiece.classList.add("queen");
+    }
+
+    toSquare.appendChild(movedPiece);
+
+    if (captured && captured.position) {
+        let capturedSquare = document.querySelector(`[data-row='${captured.position[0]}'][data-col='${captured.position[1]}']`);
+        if (capturedSquare) {
+            capturedSquare.innerHTML = '';
+            if (player === "white") {
+                whiteCapturedPieces = Math.max(0, whiteCapturedPieces + 1);
+            } else {
+                blackCapturedPieces = Math.max(0, blackCapturedPieces + 1);
+            }
+        } else {
+            console.error("Captured square not found.");
+        }
+    }
+
+    currentPlayer = currentPlayer === "white" ? "black" : "white";
+    turnCount = Math.min(turnCount + 1, turnData.length);
+
+    console.log(`Move redone: ${player} moved from (${from[0]}, ${from[1]}) to (${to[0]}, ${to[1]})`);
+}
+
+function hasMandatoryCapture() {
+    if (!currentPlayer) {
+        console.error("Error: currentPlayer is not defined.");
+        return false;
+    }
+
+    const pieces = document.querySelectorAll(`.${currentPlayer}-piece`);
+    
+    return Array.from(pieces).some(piece => {
+        if (!piece.parentElement) {
+            console.warn("Warning: A piece is missing its parent element.");
+            return false;
+        }
+
+        const isQueen = piece.classList.contains("queen");
+
+        if (typeof hasMoreCaptures !== "function" || typeof hasMoreCapturesQueen !== "function") {
+            console.error("Error: Required capture functions are missing.");
+            return false;
+        }
+
+        return isQueen ? hasMoreCapturesQueen(piece.parentElement) : hasMoreCaptures(piece.parentElement);
+    });
+}
+
+function capturePiece(piece) {
+    piece.remove();
+    if (piece.classList.contains("white-piece")) {
+        blackCapturedPieces++;
+        debugInfo(`Black player captured a white piece. Total captured: ${blackCapturedPieces}`);
+    } else if (piece.classList.contains("black-piece")) {
+        whiteCapturedPieces++;
+        debugInfo(`White player captured a black piece. Total captured: ${whiteCapturedPieces}`);
+    }
+    checkWinner();
+}
+
+function checkWinner() {
+    debugInfo(`Checking winner. White captured: ${whiteCapturedPieces}, Black captured: ${blackCapturedPieces}`);
+
+    if (whiteCapturedPieces === 12) {
+        if (gameMode === "offline") {
+            resetGame();
+        }
+        if (gameMode === "online") {
+            saveGameData(turnData, "white");
+            finishGame("white");
+        }
+    } else if (blackCapturedPieces === 12) {
+        if (gameMode === "offline") {
+            resetGame();
+        }
+        if (gameMode === "online") {
+            saveGameData(turnData, "black");
+            finishGame("black");
+        }
+    }
+}
+
+function handleSquareClick(event) {
+    let square = event.target;
+    let piece = square.querySelector(".white-piece, .black-piece");
+
+    if (square.classList.contains("white-piece") || square.classList.contains("black-piece")) {
+        piece = square;
+        square = piece.parentElement;
+    }
+
+    debugInfo(`Square clicked. Target is: ${square}, Piece: ${piece}`);
+
+    if (piece && piece.classList.contains(`${currentPlayer}-piece`)) {
+        if (selectedPiece) selectedPiece.classList.remove("selected");
+        selectedPiece = piece;
+        selectedPiece.classList.add("selected");
+        debugInfo(`${currentPlayer} player selected a piece.`);
+    } 
+
+    else if (selectedPiece === piece) {
+        selectedPiece.classList.remove("selected");
+        selectedPiece = null;
+        debugInfo("Selection cleared.");
+    } 
+
+    else if (selectedPiece && !piece) {
+        const selectedRow = parseInt(selectedPiece.parentElement.dataset.row);
+        const selectedCol = parseInt(selectedPiece.parentElement.dataset.col);
+        const targetRow = parseInt(square.dataset.row);
+        const targetCol = parseInt(square.dataset.col);
+
+        debugInfo(`Attempting move. Selected: (${selectedRow}, ${selectedCol}), Target: (${targetRow}, ${targetCol})`);
+
+
+        if (hasMandatoryCapture() && !isValidCapture(selectedRow, selectedCol, targetRow, targetCol)
+            && !isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol)) {
+            debugInfo("You must capture a piece if possible!");
+            return;
+        }
+
+        if (gameMode === 'offline') {
+
+            if (selectedPiece.classList.contains("queen")) {
+                if (
+                    square.classList.contains("black-square") &&
+                    isValidQueenMove(selectedRow, selectedCol, targetRow, targetCol) &&
+                    !isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol) &&
+                    !square.hasChildNodes()
+                ) {
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePiece(square, true);
+                } 
+
+                else if (isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol)) {
+                    handleCapture(selectedRow, selectedCol, targetRow, targetCol, square);
+                } 
+
+                else {
+                    debugInfo("Invalid move.");
+                    clearSelection();
+                }
+            } else {
+
+                if (
+                    square.classList.contains("black-square") &&
+                    selectedPiece.classList.contains("white-piece") &&
+                    targetRow - selectedRow === -1 &&
+                    Math.abs(targetCol - selectedCol) === 1 &&
+                    !square.hasChildNodes()
+                ) {
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePiece(square, true);
+                } else if (
+                    square.classList.contains("black-square") &&
+                    selectedPiece.classList.contains("black-piece") &&
+                    targetRow - selectedRow === 1 &&
+                    Math.abs(targetCol - selectedCol) === 1 &&
+                    !square.hasChildNodes()
+                ) {
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePiece(square, true);
+                }
+
+                else if (
+                    Math.abs(targetRow - selectedRow) === 2 &&
+                    Math.abs(targetCol - selectedCol) === 2 &&
+                    isValidCapture(selectedRow, selectedCol, targetRow, targetCol)
+                ) {
+                    handleCapture(selectedRow, selectedCol, targetRow, targetCol, square);
+                } 
+
+                else {
+                    debugInfo("Invalid move.");
+                    clearSelection();
+                }
+            }
+        } else if (gameMode === 'online') {
+
+            if (selectedPiece.classList.contains("queen")) {
+                if (
+                    square.classList.contains("black-square") &&
+                    selectedPiece.classList.contains(`${yourColor}-piece`) &&
+                    isValidQueenMove(selectedRow, selectedCol, targetRow, targetCol) &&
+                    !isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol) &&
+                    !square.hasChildNodes()
+                ) {
+                    movePiece(square, true);
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
+                } 
+
+                else if (
+                    isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol) &&
+                    selectedPiece.classList.contains(`${yourColor}-piece`)
+                ) {
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol, 'capture');
+                    handleCapture(selectedRow, selectedCol, targetRow, targetCol, square);
+                } 
+
+                else {
+                    debugInfo("Invalid move.");
+                    clearSelection();
+                }
+            } else {
+
+                if (
+                    square.classList.contains("black-square") &&
+                    selectedPiece.classList.contains("white-piece") &&
+                    selectedPiece.classList.contains(`${yourColor}-piece`) &&
+                    targetRow - selectedRow === -1 &&
+                    Math.abs(targetCol - selectedCol) === 1 &&
+                    !square.hasChildNodes()
+                ) {
+                    movePiece(square, true);
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
+                } else if (
+                    square.classList.contains("black-square") &&
+                    selectedPiece.classList.contains("black-piece") &&
+                    selectedPiece.classList.contains(`${yourColor}-piece`) &&
+                    targetRow - selectedRow === 1 &&
+                    Math.abs(targetCol - selectedCol) === 1 &&
+                    !square.hasChildNodes()
+                ) {
+                    movePiece(square, true);
+                    saveTurnData(selectedRow, selectedCol, targetRow, targetCol);
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
+                } 
+
+                else if (
+                    selectedPiece.classList.contains(`${yourColor}-piece`) &&
+                    Math.abs(targetRow - selectedRow) === 2 &&
+                    Math.abs(targetCol - selectedCol) === 2 &&
+                    isValidCapture(selectedRow, selectedCol, targetRow, targetCol)
+                ) {
+                    movePieceSocket(selectedRow, selectedCol, targetRow, targetCol);
+                    handleCapture(selectedRow, selectedCol, targetRow, targetCol, square);
+                } 
+
+                else {
+                    debugInfo("Invalid move.");
+                    clearSelection();
+                }
+            }
+        }
+    }
+
+    else {
+        const selectedRow = parseInt(selectedPiece.parentElement.dataset.row);
+        const selectedCol = parseInt(selectedPiece.parentElement.dataset.col);
+        const targetRow = parseInt(square.dataset.row);
+        const targetCol = parseInt(square.dataset.col);
+
+        debugInfo(`Attempting move. Selected: (${selectedRow}, ${selectedCol}), Target: (${targetRow}, ${targetCol})`);
+
+
+        if (hasMandatoryCapture() && !isValidCapture(selectedRow, selectedCol, targetRow, targetCol)
+            && !isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol)) {
+            debugInfo("You must capture a piece if possible!");
+            return;
+        }
+
+        if (
+            square.classList.contains("black-square") &&
+            !square.hasChildNodes()
+        ) {
+            movePiece(square, true);
+        } 
+        else {
+            debugInfo("Invalid move.");
+            clearSelection();
+        }
+    }
+}
+
+function handleOpponentMove(fromRow, fromCol, toRow, toCol) {
+    const square = document.querySelector(`[data-row='${fromRow}'][data-col='${fromCol}']`);
+    const squareTo = document.querySelector(`[data-row='${toRow}'][data-col='${toCol}']`);
+    const piece = square ? square.querySelector(".white-piece, .black-piece") : null;
+
+
+    if (!piece) {
+        console.error("Invalid move: No piece at the source square.");
+        return;
+    }
+
+    debugInfo(`Opponent move: (${fromRow}, ${fromCol}) -> (${toRow}, ${toCol})`);
+
+    if (piece && piece.classList.contains(`${currentPlayer}-piece`)) {
+        if (selectedPiece) selectedPiece.classList.remove("selected");
+        selectedPiece = piece;
+        selectedPiece.classList.add("selected");
+        debugInfo(`${currentPlayer} player selected a piece.`);
+    }
+
+    if (selectedPiece.classList.contains("queen")) {
+
+        if (
+            squareTo.classList.contains("black-square") &&
+            isValidQueenMove(fromRow, fromCol, toRow, toCol) &&
+            !isValidQueenCapture(fromRow, fromCol, toRow, toCol) &&
+            !squareTo.hasChildNodes()
+        ) {
+            saveTurnData(fromRow, fromCol, toRow, toCol);
+            movePiece(squareTo, true); 
+        } 
+
+        else if (isValidQueenCapture(fromRow, fromCol, toRow, toCol)) {
+            handleCapture(fromRow, fromCol, toRow, toCol, squareTo); 
+        } else {
+            debugInfo("Invalid move.");
+            clearSelection(); 
+        }
+    } else {
+
+        if (
+            squareTo.classList.contains("black-square") &&
+            Math.abs(toRow - fromRow) === 1 &&
+            Math.abs(toCol - fromCol) === 1 &&
+            !squareTo.hasChildNodes()
+        ) {
+            saveTurnData(fromRow, fromCol, toRow, toCol);
+            movePiece(squareTo, true); 
+        } 
+
+        else if (
+            Math.abs(toRow - fromRow) === 2 &&
+            Math.abs(toCol - fromCol) === 2 &&
+            isValidCapture(fromRow, fromCol, toRow, toCol)
+        ) {
+            handleCapture(fromRow, fromCol, toRow, toCol, squareTo); 
+        } else {
+            debugInfo("Invalid move.");
+            clearSelection(); 
+        }
+    }
+}
+
+function isValidQueenMove(selectedRow, selectedCol, targetRow, targetCol) {
+    const rowDiff = Math.abs(targetRow - selectedRow);
+    const colDiff = Math.abs(targetCol - selectedCol);
+    return rowDiff === colDiff || targetRow === selectedRow || targetCol === selectedCol;
+}
+
+function isValidQueenCapture(selectedRow, selectedCol, targetRow, targetCol) {
+    debugInfo(`Checking Queen capture from (${selectedRow}, ${selectedCol}) to (${targetRow}, ${targetCol})`);
+    const rowDiff = targetRow - selectedRow;
+    const colDiff = targetCol - selectedCol;
+    if (Math.abs(rowDiff) !== Math.abs(colDiff)) return false; 
+    
+
+    const rowDirection = rowDiff > 0 ? 1 : -1;
+    const colDirection = colDiff > 0 ? 1 : -1;
+    let currentRow = selectedRow + rowDirection;
+    let currentCol = selectedCol + colDirection;
+    let capturedPiece = null, middleSquare = null;
+
+    while (currentRow !== targetRow && currentCol !== targetCol) {
+        const currentSquare = document.querySelector(`[data-row='${currentRow}'][data-col='${currentCol}']`);
+        const currentPiece = currentSquare?.querySelector(".white-piece, .black-piece");
+        if (currentPiece) {
+            if (capturedPiece) return false; 
+            capturedPiece = currentPiece;
+            middleSquare = currentSquare;
+        }
+        currentRow += rowDirection;
+        currentCol += colDirection;
+    }
+    
+    const targetSquare = document.querySelector(`[data-row='${targetRow}'][data-col='${targetCol}']`);
+    if (capturedPiece && targetSquare && !targetSquare.querySelector(".white-piece, .black-piece")) {
+        return true; 
+    }
+    return false; 
+}
+
+function captureQueenPiece(capturedPiece) {
+    capturedPiece.remove(); 
+    if (capturedPiece.classList.contains("white-piece")) {
+        blackCapturedPieces++; 
+        debugInfo(`Black player captured a white piece. Total captured: ${blackCapturedPieces}`);
+    } else if (capturedPiece.classList.contains("black-piece")) {
+        whiteCapturedPieces++; 
+        debugInfo(`White player captured a black piece. Total captured: ${whiteCapturedPieces}`);
+    }
+    checkWinner(); 
+}
+
+function movePiece(targetSquare, switchTurn = true) {
+    debugInfo(`Moving piece to square: ${targetSquare.dataset.row}, ${targetSquare.dataset.col}`);
+    targetSquare.appendChild(selectedPiece); 
+    selectedPiece.classList.remove("selected");
+
+    const targetRow = parseInt(targetSquare.dataset.row);
+    if (
+        (currentPlayer === "white" && targetRow === 1) ||
+        (currentPlayer === "black" && targetRow === 8)
+    ) {
+        selectedPiece.classList.add("queen"); 
+        debugInfo(`${currentPlayer} piece became a queen!`);
+    }
+
+    selectedPiece = null;
+    if (switchTurn) switchPlayer(); 
+}
+
+function handleCapture(selectedRow, selectedCol, targetRow, targetCol, targetSquare) {
+    if (!selectedPiece.classList.contains("queen")) {
+        const middleRow = (selectedRow + targetRow) / 2;
+        const middleCol = (selectedCol + targetCol) / 2;
+        const middleSquare = document.querySelector(`[data-row='${middleRow}'][data-col='${middleCol}']`);
+        const capturedPiece = middleSquare ? middleSquare.querySelector(".white-piece, .black-piece") : null;
+        const wasQueen = capturedPiece.classList.contains("queen");
+
+        if (capturedPiece) {
+            if (capturedPiece.classList.contains("white-piece")) {
+                capturedData = { row: middleRow, col: middleCol, player: "white", wasQueen: wasQueen }; 
+            } else {
+                capturedData = { row: middleRow, col: middleCol, player: "black", wasQueen: wasQueen }; 
+            }
+        }
+
+        debugInfo(`Attempting capture. Middle square: (${middleRow}, ${middleCol}), Captured piece: ${capturedPiece}`);
+
+        if (capturedPiece && capturedPiece.classList.contains(`${currentPlayer === "white" ? "black" : "white"}-piece`)) {
+            saveTurnData(selectedRow, selectedCol, targetRow, targetCol, 'capture', capturedData);
+
+            capturePiece(capturedPiece); 
+            movePiece(targetSquare, false); 
+
+            if (!hasMoreCaptures(targetSquare)) {
+                switchPlayer();
+            } else {
+                debugInfo(`${currentPlayer} can capture again.`);
+                selectedPiece = targetSquare.querySelector(".white-piece, .black-piece");
+                selectedPiece.classList.add("selected"); 
+            }
+        } else {
+            debugInfo("Invalid capture attempt.");
+            clearSelection(); 
+        }
+    } else {
+
+        let rowDirection = targetRow > selectedRow ? 1 : -1;
+        let colDirection = targetCol > selectedCol ? 1 : -1;
+        let row = selectedRow + rowDirection;
+        let col = selectedCol + colDirection;
+        let capturedPiece = null;
+        let middleSquare = null;
+    
+
+        while (row !== targetRow || col !== targetCol) {
+            middleSquare = document.querySelector(`[data-row='${row}'][data-col='${col}']`);
+            if (middleSquare && middleSquare.hasChildNodes()) {
+                capturedPiece = middleSquare.querySelector(".white-piece, .black-piece");
+                const wasQueen = capturedPiece.classList.contains("queen");
+
+                if (capturedPiece) {
+                    if (capturedPiece.classList.contains("white-piece")) {
+                        capturedData = { row: row, col: col, player: "white", wasQueen: wasQueen }; 
+                    } else {
+                        capturedData = { row: row, col: col, player: "black", wasQueen: wasQueen }; 
+                    }
+                    break;
+                }
+            }
+            row += rowDirection;
+            col += colDirection;
+        }
+    
+        if (capturedPiece && capturedPiece.classList.contains(`${currentPlayer === "white" ? "black" : "white"}-piece`)) {
+            saveTurnData(selectedRow, selectedCol, targetRow, targetCol, 'capture', capturedData);
+            
+            captureQueenPiece(capturedPiece); 
+            movePiece(targetSquare, false); 
+
+            if (!hasMoreCapturesQueen(targetSquare)) {
+                switchPlayer();
+            } else {
+                debugInfo(`${currentPlayer} can capture again.`);
+                selectedPiece = targetSquare.querySelector(".white-piece, .black-piece");
+                selectedPiece.classList.add("selected");
+            }
+            
+        } else {
+            debugInfo("Invalid queen capture attempt.");
+            clearSelection(); 
+        }
+    }
+}
+
+function isValidCapture(selectedRow, selectedCol, targetRow, targetCol) {
+    debugInfo(`Starting isValidCapture function for selected square: (${selectedRow}, ${selectedCol}) and target square: (${targetRow}, ${targetCol})`);
+
+    const middleRow = Math.floor((selectedRow + targetRow) / 2);
+    const middleCol = Math.floor((selectedCol + targetCol) / 2);
+    debugInfo(`Calculated middle square: (${middleRow}, ${middleCol})`);
+
+    const middleSquare = document.querySelector(`[data-row='${middleRow}'][data-col='${middleCol}']`);
+    
+    if (!middleSquare) {
+        debugInfo("Middle square not found. Invalid capture.");
+        return false;
+    }
+
+    debugInfo("Middle square found.");
+
+    const capturedPiece = middleSquare.querySelector(".white-piece, .black-piece");
+    
+    if (capturedPiece) {
+        debugInfo("Captured piece found:", capturedPiece);
+    } else {
+        debugInfo("No captured piece found in the middle square.");
+    }
+
+    const opponentPiece = capturedPiece && capturedPiece.classList.contains(`${currentPlayer === "white" ? "black" : "white"}-piece`);
+    
+    if (opponentPiece) {
+        debugInfo("Captured piece belongs to the opponent.");
+    } else {
+        debugInfo("Captured piece does not belong to the opponent or no piece to capture.");
+    }
+
+    return opponentPiece;
+}
+
+function debugInfo(message) {
+    console.log(`DEBUG INFO: ${message}`);
+}
+
+function hasMoreCaptures(pieceSquare) {
+    const row = parseInt(pieceSquare.dataset.row);
+    const col = parseInt(pieceSquare.dataset.col);
+    
+    if (isNaN(row) || isNaN(col)) {
+        console.error("Invalid row or column value:", row, col);
+        return false;
+    }
+
+    const directions = [
+        { row: -2, col: -2 }, { row: -2, col: 2 }, 
+        { row: 2, col: -2 }, { row: 2, col: 2 }
+    ];
+
+    return directions.some(({ row: dr, col: dc }) => {
+        const midRow = row + dr / 2;
+        const midCol = col + dc / 2;
+        const targetRow = row + dr;
+        const targetCol = col + dc;
+
+        const midSquare = document.querySelector(`[data-row='${midRow}'][data-col='${midCol}']`);
+        const targetSquare = document.querySelector(`[data-row='${targetRow}'][data-col='${targetCol}']`);
+
+        if (!midSquare || !targetSquare) return false; 
+
+        const midPiece = midSquare.querySelector(".white-piece, .black-piece");
+        if (!midPiece) return false; 
+
+        if (!midPiece.classList.contains(currentPlayer === "white" ? "black-piece" : "white-piece")) return false; 
+
+        return targetSquare.children.length === 0; 
+    });
+}
+
+function hasMoreCapturesQueen(pieceSquare) {
+    const row = parseInt(pieceSquare.dataset.row);
+    const col = parseInt(pieceSquare.dataset.col);
+    
+    if (isNaN(row) || isNaN(col)) {
+        console.error("Invalid row or column value:", row, col);
+        return false;
+    }
+
+    const directions = [
+        { row: -1, col: -1 }, { row: -1, col: 1 }, 
+        { row: 1, col: -1 }, { row: 1, col: 1 }
+    ];
+
+    return directions.some(({ row: dr, col: dc }) => {
+        let step = 1;
+        let foundOpponent = false; 
+
+        while (true) {
+            const midRow = row + dr * step;
+            const midCol = col + dc * step;
+            const targetRow = row + dr * (step + 1);
+            const targetCol = col + dc * (step + 1);
+
+            if (midRow < 1 || midRow > 8 || midCol < 1 || midCol > 8) break;
+            if (targetRow < 1 || targetRow > 8 || targetCol < 1 || targetCol > 8) break;
+
+            const midSquare = document.querySelector(`[data-row='${midRow}'][data-col='${midCol}']`);
+            const targetSquare = document.querySelector(`[data-row='${targetRow}'][data-col='${targetCol}']`);
+
+            if (!midSquare || !targetSquare) break; 
+
+            const midPiece = midSquare.querySelector(".white-piece, .black-piece");
+
+            if (midPiece) {
+                if (foundOpponent) break;
+
+                if (midPiece.classList.contains(currentPlayer === "white" ? "black-piece" : "white-piece")) {
+                    foundOpponent = true; 
+                } else {
+                    break; 
+                }
+            }
+
+            if (foundOpponent && targetSquare.children.length === 0) return true;
+
+            step++;
+        }
+        return false;
+    });
+}
+
+function switchPlayer() {
+    currentPlayer = currentPlayer === "white" ? "black" : "white";
+    debugInfo(`Next player: ${currentPlayer}`);
+}
+
+function clearSelection() {
+    if (selectedPiece) selectedPiece.classList.remove("selected");
+    selectedPiece = null;
+}
+
+function resetGame(color = "white", boardLocation = "offlineGameBoard", readyTurnData = []) {
+    whiteCapturedPieces = 0;
+    blackCapturedPieces = 0;
+    turnCount = 0;
+    turnData = readyTurnData;
+    selectedPiece = null;
+    currentPlayer = "white";
+    debugInfo("Game reset.");
+    document.getElementById("offlineGameBoard").innerHTML = "";
+    document.getElementById("reviewGameBoard").innerHTML = "";
+    document.getElementById("onlineGameBoard").innerHTML = "";
+    createBoard(color,boardLocation);
+    addSquareEventListeners();
+}
+
+function addSquareEventListeners() {
+    document.querySelectorAll(".square").forEach(square => {
+        square.addEventListener("click", handleSquareClick);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    addSquareEventListeners();
+});
+
+    </script>
+</body>
+</html>

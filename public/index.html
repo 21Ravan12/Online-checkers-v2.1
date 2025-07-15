@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkers Game</title>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script defer src="js/socket.js"></script>
+    
+    <link rel="stylesheet" href="assets/styles/checker.css">
+    <link rel="stylesheet" href="assets/styles/main.css">
+</head>
+<body>
+    <div class="main-container" id="menu">
+        <h1>Checkers</h1>
+        <button class="main-button" onclick="navigateTo('offlineMenu')">Offline</button>
+        <button class="main-button" onclick="navigateTo('onlineMenu')" >Online</button>
+        <button class="main-button" onclick="navigateTo('settingsMenu')">Settings</button>
+        <button class="main-button" onclick="navigateTo('AccountMenu')" ><div><img id="accountProfilePicture" alt="Avatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAAELklEQVR4nO3dS27bMBRA0aToUrOsLEjL6qAF+otjxZIskfeccYE+Au+KhCd5XZblBaq+nT0AnEkApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIO372QO0vL+/r/lnb29vR0/CT6/Lspw9w+RWLv0tYjiUAI6yce//p4QjCGBnu+/9/5SwIwHs5gmr/ycZ7EIAO3jy6v9JBhv5GXSrE7f/9P99Am6Ax11q+VwFj3EDPOhS2/9yvXlGIYBHXHPbrjnVxXkCfc0QS+Y5tJ4b4AuG2P6Xcea8AgGsNdZWjTXtiQSwyoj7NOLMzycA0gRw37if0nEnfxoB3DH6Do0+/9EE8Jk5tmeOUxxEAKQJ4KaZPpwznWVfAvjYfBsz34l2IQDSBPCBWT+Ws55rCwGQJoB/zf2ZnPt0DxAAaQIgTQB/KbwQCmdcTwCkCYA0AfzWeRt0TnqXAEgTAGkCIE0Av9SexbXz3iIA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAvil9oflaue9RQCkCYA0AZAmgN86z+LOSe8SAGkCIE0Afym8DQpnXE8ApAmANAH8a+4Xwtyne4AASBPAB2b9TM56ri0EQJoAPjbfx3K+E+1CADfNtDEznWVfAiBNAJ+Z48M5xykOIoA7Rt+e0ec/mgDuG3eHxp38aQRAmgBWGfFTOuLMzyeAtcbap7GmPZEAvmCUrRplzit4XZbl7BnGc9m/MGf1v8oN8Ihr7tk1p7o4ATzoatt2tXlG4Qm01enPIau/hRtgq3P3z/Zv5AbYzZOvAqu/CwHs7AkZWP0dCeAou5dg748ggMNtLMHeH2rCAE7/WWZukwXpVyDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBEDa67IsZ88Ap3EDkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0n4AQKq0cz+AeSEAAAAASUVORK5CYII="><p id="accountName">Account</p></div></button>
+        <button class="main-button" onclick="window.location.replace('https://google.com')">Exit</button>
+    </div>
+    
+    <div class="main-container" id="offlineMenu">
+        <h1>Select Game Mode</h1>
+        <button class="main-button" onclick="alert('Bota karşı oyun modu geliştiriliyor!')">Against Bot</button>
+        <button class="main-button" onclick="navigateTo('offlineGameContainer')">Two Player</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+    
+    <div class="main-container" id="onlineMenu">
+        <h1>Online Game</h1>
+        <button class="main-button" onclick="navigateTo('quickMatchMenu')">Quick Match</button>
+        <button class="main-button" onclick="navigateTo('gameListMenu')">Game List</button>
+        <button class="main-button" onclick="navigateTo('createGameMenu')">Create Game</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+    
+    <div class="main-container" id="quickMatchMenu">
+        <h1>Quick Match</h1>
+        <button class="main-button" onclick="quickMatch()">Find Match</button>
+        <button class="main-button" onclick="navigateTo('onlineMenu')">Back</button>
+    </div>
+    
+    <div class="main-container" id="gameListMenu">
+        <h1>Game List</h1>
+        
+        <div id="gameListContainer" class="game-list"></div>
+        
+        <div class="button-container">
+            <button class="main-button" onclick="refreshGameList()">🔄 Refresh</button>
+            <button class="main-button" onclick="joinGameFromList()">🎮 Join Game</button>
+            <button class="main-button" onclick="navigateTo('onlineMenu')">⬅ Back</button>
+        </div>
+    </div>
+    
+    <div class="main-container" id="createGameMenu">
+        <h1>Create Game</h1>
+    
+        <div class="side-selection">
+            <label for="side">Choose Your Side:</label>
+            <select id="side" class="main-input">
+                <option value="white">⚪ White</option>
+                <option value="black">⚫ Black</option>
+            </select>
+        </div>
+    
+        <div class="button-container">
+            <button class="main-button" onclick="startNewGame()">🚀 Start</button>
+            <button class="main-button" onclick="navigateTo('onlineMenu')">⬅ Back</button>
+        </div>
+    </div>
+    
+    <div class="main-container" id="settingsMenu">
+        <h1>Settings</h1>
+        <button class="main-button" onclick="adjustSound()">Sound Settings</button>
+        <button class="main-button" onclick="adjustGraphics()">Graphics Settings</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+
+    <div class="game-container" id="offlineGameContainer">
+        <button class="back-button" onclick="navigateTo('offlineMenu')">Back</button>
+        <button class="button-undo" id="undoButton" onclick="undoLastMove()">⏪</button>
+        <button class="button-redo" id="redoButton" onclick="redoLastMove()">⏩</button>
+        <div class="board-container">
+            <div id="winner-display"></div>
+            <div class="board" id="offlineGameBoard"></div>
+        </div>
+    </div>
+    
+    <div class="game-container" id="onlineGameContainer">
+        <button class="back-button" onclick="navigateTo('onlineMenu')">Back</button>
+
+        <div class="opponent-profile" id="opponentProfile">
+            <img id="opponentAvatar" alt="Opponent Avatar">
+            <p id="opponentName">Opponent</p>
+        </div>
+
+        <div class="board-container">
+            <div id="winner-display"></div>
+            <div class="board" id="onlineGameBoard"></div>
+        </div>
+    </div>
+
+    <div class="main-container" id="waitingScreen">
+        <h1 id="waitingScreenContent">Waiting for opponent...</h1>
+        <div class="loading-spinner"></div>
+        <button class="loading-spinner-back-button" onclick="navigateTo('onlineMenu')">Back</button>
+    </div>
+
+    <div class="main-container" id="waitingScreenForAuth">
+        <h1 id="waitingScreenContentForAuth">Waiting for opponent...</h1>
+        <div class="loading-spinner"></div>
+    </div>
+
+    <div class="main-container" id="AccountMenu">
+        <h1>ACCOUNT SECTION</h1>
+        <button class="main-button" onclick="navigateTo('signupMenu')">Sign Up</button>
+        <button class="main-button" onclick="navigateTo('loginMenu')">Log In</button>
+        <button class="main-button" onclick="navigateTo('sendCodeMenu')">Resresh Password</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+
+    <div class="main-container" id="loginMenu">
+        <h1>Log In</h1>
+        <form id="loginForm">
+            <input type="text" id="loginUserEmail" class="auth-input" placeholder="Useremail" required>
+            <input type="password" id="loginPassword" class="auth-input" placeholder="Password" required>
+            <button type="submit" class="main-button">Log In</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>
+
+    <div class="main-container" id="sendCodeMenu">
+        <h1>Resresh Password</h1>
+        <form id="sendCodeForm">
+            <input type="email" id="sendCodeEmail" class="main-input" placeholder="Enter your email" required>
+            <button type="submit" class="main-button">Send Code</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>
+
+    <div class="main-container" id="verifyMenuForRefreshPassword">
+        <h1>Verify Code</h1>
+        <form id="verifyRefreshPasswordForm">
+            <input type="text" id="verificationCodeForRefreshPassword" class="main-input" placeholder="Enter verification code" required>
+            <button type="submit" class="main-button">Verify</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>
+
+    <div class="main-container" id="refreshPasswordMenu">
+        <h1>Reset Password</h1>
+        <form id="refreshPasswordForm">
+            <input type="password" id="newPassword" class="main-input" placeholder="Enter new password" required>
+            <input type="password" id="confirmNewPassword" class="main-input" placeholder="Confirm new password" required>
+            <button type="submit" class="main-button">Reset Password</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>    
+    
+    <div class="main-container" id="signupMenu">
+        <h1>Sign Up</h1>
+        <form id="signupForm">
+            <input type="text" id="signupUsername" class="main-input" placeholder="Enter username" required>
+            <input type="email" id="signupUserEmail" class="main-input" placeholder="Enter email" required>
+            <input type="number" id="signupUserDate" class="main-input" placeholder="Enter birthyear" required>
+            <input type="password" id="signupPassword" class="main-input" placeholder="Enter password" required>
+            <input type="password" id="confirmPassword" class="main-input" placeholder="Confirm password" required>
+            <button type="submit" class="main-button">Sign Up</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
+    </div>
+       
+    <div class="main-container" id="verifyMenuForSignup">
+        <h1>Verify Code</h1>
+        <form id="verificationFormForSignup">
+            <input type="text" id="verificationCodeForSignup" class="main-input" placeholder="Enter verification code" required>
+            <button type="submit" class="main-button">Verify</button>
+        </form>
+        <p>Return to the <a href="#" onclick="navigateTo('Account Menu')">Account Menu</a></p>
+    </div>    
+    
+    <script src="js/forms.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/mainScripts.js"></script>
+    <script src="js/board.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
