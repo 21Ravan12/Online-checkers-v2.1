@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkers Game</title>
     
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script defer src="js/socket.js"></script>
     
     <link rel="stylesheet" href="assets/styles/checker.css">
@@ -17,13 +16,12 @@
         <button class="main-button" onclick="navigateTo('offlineMenu')">Offline</button>
         <button class="main-button" onclick="navigateTo('onlineMenu')" >Online</button>
         <button class="main-button" onclick="navigateTo('settingsMenu')">Settings</button>
-        <button class="main-button" onclick="navigateTo('AccountMenu')" ><div><img id="accountProfilePicture" alt="Avatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAAELklEQVR4nO3dS27bMBRA0aToUrOsLEjL6qAF+otjxZIskfeccYE+Au+KhCd5XZblBaq+nT0AnEkApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIO372QO0vL+/r/lnb29vR0/CT6/Lspw9w+RWLv0tYjiUAI6yce//p4QjCGBnu+/9/5SwIwHs5gmr/ycZ7EIAO3jy6v9JBhv5GXSrE7f/9P99Am6Ax11q+VwFj3EDPOhS2/9yvXlGIYBHXHPbrjnVxXkCfc0QS+Y5tJ4b4AuG2P6Xcea8AgGsNdZWjTXtiQSwyoj7NOLMzycA0gRw37if0nEnfxoB3DH6Do0+/9EE8Jk5tmeOUxxEAKQJ4KaZPpwznWVfAvjYfBsz34l2IQDSBPCBWT+Ws55rCwGQJoB/zf2ZnPt0DxAAaQIgTQB/KbwQCmdcTwCkCYA0AfzWeRt0TnqXAEgTAGkCIE0Av9SexbXz3iIA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAvil9oflaue9RQCkCYA0AZAmgN86z+LOSe8SAGkCIE0Afym8DQpnXE8ApAmANAH8a+4Xwtyne4AASBPAB2b9TM56ri0EQJoAPjbfx3K+E+1CADfNtDEznWVfAiBNAJ+Z48M5xykOIoA7Rt+e0ec/mgDuG3eHxp38aQRAmgBWGfFTOuLMzyeAtcbap7GmPZEAvmCUrRplzit4XZbl7BnGc9m/MGf1v8oN8Ihr7tk1p7o4ATzoatt2tXlG4Qm01enPIau/hRtgq3P3z/Zv5AbYzZOvAqu/CwHs7AkZWP0dCeAou5dg748ggMNtLMHeH2rCAE7/WWZukwXpVyDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBEDa67IsZ88Ap3EDkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0n4AQKq0cz+AeSEAAAAASUVORK5CYII="><p id="accountName">Account</p></div></button>
+        <button class="main-button" id="AccountMenuButtonId" onclick="navigateTo('AccountMenu')" ><div><img id="accountProfilePicture" alt="Avatar" src=""><p id="accountName">Account</p></div></button>
         <button class="main-button" onclick="window.location.replace('https://google.com')">Exit</button>
     </div>
     
     <div class="main-container" id="offlineMenu">
         <h1>Select Game Mode</h1>
-        <button class="main-button" onclick="alert('Bota karşı oyun modu geliştiriliyor!')">Against Bot</button>
         <button class="main-button" onclick="navigateTo('offlineGameContainer')">Two Player</button>
         <button class="main-button" onclick="navigateTo('menu')">Back</button>
     </div>
@@ -33,6 +31,7 @@
         <button class="main-button" onclick="navigateTo('quickMatchMenu')">Quick Match</button>
         <button class="main-button" onclick="navigateTo('gameListMenu')">Game List</button>
         <button class="main-button" onclick="navigateTo('createGameMenu')">Create Game</button>
+        <button class="main-button" onclick="navigateTo('gameHistoryList')">Game History</button>
         <button class="main-button" onclick="navigateTo('menu')">Back</button>
     </div>
     
@@ -48,9 +47,19 @@
         <div id="gameListContainer" class="game-list"></div>
         
         <div class="button-container">
-            <button class="main-button" onclick="refreshGameList()">🔄 Refresh</button>
-            <button class="main-button" onclick="joinGameFromList()">🎮 Join Game</button>
-            <button class="main-button" onclick="navigateTo('onlineMenu')">⬅ Back</button>
+            <button class="main-button" onclick="refreshGameList()">↻</button>
+            <button class="main-button" onclick="joinGameFromList()">►</button>
+            <button class="main-button" style="padding-left: 25px; padding-right: 25px; padding-top: 10px; padding-bottom: 12px;" onclick="navigateTo('onlineMenu')">⬅</button>
+        </div>
+    </div>
+
+    <div class="main-container" id="gameHistoryList">
+        <h1>Game History</h1>
+        
+        <div id="gameHistoryListContainer" class="game-list"></div>
+        
+        <div class="button-container">
+            <button class="main-button"   style="padding-left: 25px; padding-right: 25px; padding-top: 10px; padding-bottom: 12px;" onclick="navigateTo('onlineMenu') ">⬅</button>
         </div>
     </div>
     
@@ -80,8 +89,8 @@
 
     <div class="game-container" id="offlineGameContainer">
         <button class="back-button" onclick="navigateTo('offlineMenu')">Back</button>
-        <button class="button-undo" id="undoButton" onclick="undoLastMove()">⏪</button>
-        <button class="button-redo" id="redoButton" onclick="redoLastMove()">⏩</button>
+        <button class="button-undo" id="undoButton" onclick="undoLastMove()">⏪︎</button>
+        <button class="button-redo" id="redoButton" onclick="redoLastMove()">⏩︎</button>
         <div class="board-container">
             <div id="winner-display"></div>
             <div class="board" id="offlineGameBoard"></div>
@@ -102,6 +111,22 @@
         </div>
     </div>
 
+    <div class="game-container" id="reviewGameContainer">
+        <button class="back-button" onclick="navigateTo('gameHistoryList')">Back</button>
+        <button class="button-undo" id="undoButton" onclick="undoLastMove()">⏪︎</button>
+        <button class="button-redo" id="redoButton" onclick="redoLastMove()">⏩︎</button>
+        <div class="board-container">
+            <div id="winner-display"></div>
+            <div class="board" id="reviewGameBoard"></div>
+        </div>
+    </div>
+
+    <div class="main-container" id="afterEndOfOnlineGameContainer">
+        <h1 id="afterEndOfOnlineGameMessage">Game Over! White player wins.</h1>
+        <button class="loading-spinner-back-button" onclick="navigateTo('onlineMenu')">Back</button>
+        <button class="loading-spinner-back-button" onclick="navigateTo('gameHistoryList')">Game History</button>
+    </div>
+
     <div class="main-container" id="waitingScreen">
         <h1 id="waitingScreenContent">Waiting for opponent...</h1>
         <div class="loading-spinner"></div>
@@ -117,7 +142,20 @@
         <h1>ACCOUNT SECTION</h1>
         <button class="main-button" onclick="navigateTo('signupMenu')">Sign Up</button>
         <button class="main-button" onclick="navigateTo('loginMenu')">Log In</button>
-        <button class="main-button" onclick="navigateTo('sendCodeMenu')">Resresh Password</button>
+        <button class="main-button" onclick="navigateTo('sendCodeMenu')">Reset Password</button>
+        <button class="main-button" onclick="navigateTo('menu')">Back</button>
+    </div>
+
+    <div class="main-container" id="PersonalAccountMenu">
+        <div class="profile-container">
+        <div class="profile-picture"><img id="accountProfilePicture" alt="Avatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAAELklEQVR4nO3dS27bMBRA0aToUrOsLEjL6qAF+otjxZIskfeccYE+Au+KhCd5XZblBaq+nT0AnEkApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIO372QO0vL+/r/lnb29vR0/CT6/Lspw9w+RWLv0tYjiUAI6yce//p4QjCGBnu+/9/5SwIwHs5gmr/ycZ7EIAO3jy6v9JBhv5GXSrE7f/9P99Am6Ax11q+VwFj3EDPOhS2/9yvXlGIYBHXHPbrjnVxXkCfc0QS+Y5tJ4b4AuG2P6Xcea8AgGsNdZWjTXtiQSwyoj7NOLMzycA0gRw37if0nEnfxoB3DH6Do0+/9EE8Jk5tmeOUxxEAKQJ4KaZPpwznWVfAvjYfBsz34l2IQDSBPCBWT+Ws55rCwGQJoB/zf2ZnPt0DxAAaQIgTQB/KbwQCmdcTwCkCYA0AfzWeRt0TnqXAEgTAGkCIE0Av9SexbXz3iIA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAvil9oflaue9RQCkCYA0AZAmgN86z+LOSe8SAGkCIE0Afym8DQpnXE8ApAmANAH8a+4Xwtyne4AASBPAB2b9TM56ri0EQJoAPjbfx3K+E+1CADfNtDEznWVfAiBNAJ+Z48M5xykOIoA7Rt+e0ec/mgDuG3eHxp38aQRAmgBWGfFTOuLMzyeAtcbap7GmPZEAvmCUrRplzit4XZbl7BnGc9m/MGf1v8oN8Ihr7tk1p7o4ATzoatt2tXlG4Qm01enPIau/hRtgq3P3z/Zv5AbYzZOvAqu/CwHs7AkZWP0dCeAou5dg748ggMNtLMHeH2rCAE7/WWZukwXpVyDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBEDa67IsZ88Ap3EDkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0n4AQKq0cz+AeSEAAAAASUVORK5CYII="></div>
+        <div class="profile-elements">
+            <p id="accountProfileName">Name: Name</p>
+            <p id="accountProfileEmail">Email: Email.com</p>
+            <p id="accountProfileBirthyear">Birthyear: 2000</p>
+        </div>
+        </div>
+        <button class="main-button" onclick="logOut()">Log Out</button>
         <button class="main-button" onclick="navigateTo('menu')">Back</button>
     </div>
 
@@ -179,7 +217,7 @@
             <button type="submit" class="main-button">Verify</button>
         </form>
         <p>Return to the <a href="#" onclick="navigateTo('Account Menu')">Account Menu</a></p>
-    </div>    
+    </div>  
     
     <script src="js/forms.js"></script>
     <script src="js/router.js"></script>
