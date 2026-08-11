@@ -1,6 +1,6 @@
 # ♟️ Online Checkers v2.1 — *Classic but Rock-Solid*
 
-> **Age:** A few seasons old · **Status:** Still kicking butt! ✅
+> **Age:** A few seasons old · **Status:** Still kicking! ✅
 
 This is **Version 2.1** of my turn-based online checkers project.  
 It may not be the *newest* kid on the block, but it's **fully functional**, **well-tested**, and **ready to play** — both offline and online with friends.
