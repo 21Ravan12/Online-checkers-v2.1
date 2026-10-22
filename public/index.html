@@ -142,7 +142,6 @@
         <h1>ACCOUNT SECTION</h1>
         <button class="main-button" onclick="navigateTo('signupMenu')">Sign Up</button>
         <button class="main-button" onclick="navigateTo('loginMenu')">Log In</button>
-        <button class="main-button" onclick="navigateTo('sendCodeMenu')">Reset Password</button>
         <button class="main-button" onclick="navigateTo('menu')">Back</button>
     </div>
 
@@ -169,34 +168,6 @@
         <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
     </div>
 
-    <div class="main-container" id="sendCodeMenu">
-        <h1>Resresh Password</h1>
-        <form id="sendCodeForm">
-            <input type="email" id="sendCodeEmail" class="main-input" placeholder="Enter your email" required>
-            <button type="submit" class="main-button">Send Code</button>
-        </form>
-        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
-    </div>
-
-    <div class="main-container" id="verifyMenuForRefreshPassword">
-        <h1>Verify Code</h1>
-        <form id="verifyRefreshPasswordForm">
-            <input type="text" id="verificationCodeForRefreshPassword" class="main-input" placeholder="Enter verification code" required>
-            <button type="submit" class="main-button">Verify</button>
-        </form>
-        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
-    </div>
-
-    <div class="main-container" id="refreshPasswordMenu">
-        <h1>Reset Password</h1>
-        <form id="refreshPasswordForm">
-            <input type="password" id="newPassword" class="main-input" placeholder="Enter new password" required>
-            <input type="password" id="confirmNewPassword" class="main-input" placeholder="Confirm new password" required>
-            <button type="submit" class="main-button">Reset Password</button>
-        </form>
-        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
-    </div>    
-    
     <div class="main-container" id="signupMenu">
         <h1>Sign Up</h1>
         <form id="signupForm">
@@ -209,16 +180,6 @@
         </form>
         <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
     </div>
-       
-    <div class="main-container" id="verifyMenuForSignup">
-        <h1>Verify Code</h1>
-        <form id="verificationFormForSignup">
-            <input type="text" id="verificationCodeForSignup" class="main-input" placeholder="Enter verification code" required>
-            <button type="submit" class="main-button">Verify</button>
-        </form>
-        <p>Return to the <a href="#" onclick="navigateTo('Account Menu')">Account Menu</a></p>
-    </div>  
-    
     <script src="js/forms.js"></script>
     <script src="js/router.js"></script>
     <script src="js/mainScripts.js"></script>

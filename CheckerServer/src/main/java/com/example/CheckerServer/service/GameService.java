@@ -16,15 +16,18 @@ import com.example.CheckerServer.repository.GameRepository;
 public class GameService {
 
     private final GameRepository gameRepository;
+    private final IdSequenceService idSequenceService;
 
-    public GameService(GameRepository gameRepository) {
+    public GameService(GameRepository gameRepository, IdSequenceService idSequenceService) {
         this.gameRepository = gameRepository;
+        this.idSequenceService = idSequenceService;
     }
 
     public String saveGame(Long owner, Long whitePlayer, Long blackPlayer, Long winner, String gameData) {
         try {
         System.out.println("Saving game with owner: " + owner + ", whitePlayer: " + whitePlayer + ", blackPlayer: " + blackPlayer + ", winner: " + winner + ", gameData: " + gameData);
         Game game = new Game();
+        game.setId(idSequenceService.nextId("games"));
         game.setOwner(owner);
         game.setWhitePlayer(whitePlayer);
         game.setBlackPlayer(blackPlayer);

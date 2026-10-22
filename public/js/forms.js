@@ -1,10 +1,6 @@
 document.addEventListener("DOMContentLoaded", function() {
     document.getElementById("signupForm").addEventListener("submit", signUp);
-    document.getElementById("verificationFormForSignup").addEventListener("submit", verifyCodeForSignup);
     document.getElementById("loginForm").addEventListener("submit", logIn);
-    document.getElementById("sendCodeForm").addEventListener("submit", sendVerifyCode);
-    document.getElementById("verifyRefreshPasswordForm").addEventListener("submit", verifyMenuForRefreshPassword);
-    document.getElementById("refreshPasswordForm").addEventListener("submit", refreshPassword);
 });
 
 async function signUp(event) {
@@ -36,7 +32,7 @@ async function signUp(event) {
         profilePicture: defaultProfilePicture 
     };
 
-    document.getElementById("waitingScreenContentForAuth").innerHTML = "Waiting for send verification code...";
+    document.getElementById("waitingScreenContentForAuth").innerHTML = "Creating your account...";
     navigateTo('waitingScreenForAuth');
 
     try {
@@ -66,50 +62,13 @@ async function signUp(event) {
             return;
         }
 
-        if (data.jwt_token) {
-            sessionStorage.setItem("authToken", data.jwt_token);
-        }
-
         if (data.message) {
             alert(data.message);
-            navigateTo("verifyMenuForSignup");
+            navigateTo("loginMenu");
         }
     } catch (error) {
         alert("An unexpected error occurred: " + error.message);
         navigateTo('signupMenu');
-    }
-}
-
-async function verifyCodeForSignup(event) {
-    event.preventDefault(); 
-
-    const code = document.getElementById("verificationCodeForSignup").value.trim();
-    const token = sessionStorage.getItem("authToken");
-
-    if (!code) {
-        alert("All fields are required!");
-        return;
-    }
-
-    try {
-        const response = await fetch("http://127.0.0.1:9090/api/users/verifyForRegister", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code, token })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || "Something went wrong.");
-        }
-
-        if (data.message) {
-            alert(data.message);
-            navigateTo("loginMenu");
-        } 
-    } catch (error) {
-        alert(error.message);
     }
 }
 
@@ -160,133 +119,6 @@ async function logOut() {
     sessionStorage.clear("user_id");
     updateAccountUI("", "", "", "");
     navigateTo("menu");
-}
-
-async function sendVerifyCode(event) {
-    event.preventDefault();
-
-    const email = document.getElementById("sendCodeEmail").value.trim();
-
-    if (!email) {
-        alert("All fields are required!");
-        return;
-    }
-
-    const payload = {
-        email,
-    };
-
-    document.getElementById("waitingScreenContentForAuth").innerHTML = "Waiting for send verification code...";
-    navigateTo('waitingScreenForAuth');
-
-    try {
-        const response = await fetch("http://127.0.0.1:9090/api/users/changeCode", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-        
-        let data;
-        try {
-            data = await response.json();
-        } catch (error) {
-            console.error("Invalid JSON response:", data, error);
-            alert("Invalid response from server: " + data);
-            return;
-        }
-    
-        if (!response.ok) {
-            navigateTo('sendCodeMenu');
-            const errorMessage = data?.error || "An error occurred while registering.";
-            alert(errorMessage);
-            console.log(errorMessage);
-            return;
-        }
-    
-        if (data.jwt_token) {
-            sessionStorage.setItem("authToken", data.jwt_token);
-        }
-    
-        if (data.message) {
-            alert(data.message);
-            navigateTo("verifyMenuForRefreshPassword");            
-        }
-    } catch (error) {
-        console.error("Error:", error);
-        alert("An unexpected error occurred: " + error.message);
-    }
-}
-
-async function verifyMenuForRefreshPassword(event) {
-    event.preventDefault(); 
-
-    const code = document.getElementById("verificationCodeForRefreshPassword").value.trim();
-    const token = sessionStorage.getItem("authToken");
-
-    if (!code) {
-        alert("All fields are required!");
-        return;
-    }
-
-    try {
-        const response = await fetch("http://127.0.0.1:9090/api/users/verifyForChangeCode", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code, token })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || "Something went wrong.");
-        }
-
-        if (data.message) {
-            alert(data.message);
-            navigateTo("refreshPasswordMenu");
-        } 
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function refreshPassword(event) {
-    event.preventDefault(); 
-
-    const password = document.getElementById("newPassword").value;
-    const confirmPassword = document.getElementById("confirmNewPassword").value;
-    const token = sessionStorage.getItem("authToken");
-
-    if (!password) {
-        alert("All fields are required!");
-        return;
-    }
-
-    if (password !== confirmPassword) {
-        alert("Passwords do not match!");
-        return;
-    }
-
-    try {
-        const response = await fetch("http://127.0.0.1:9090/api/users/changeCodeEnd", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token, password })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || "Something went wrong.");
-        }
-
-        if (data.message) {
-            alert(data.message);
-            navigateTo("loginMenu");
-        } 
-    } catch (error) {
-        alert(error.message);
-    }
 }
 
 async function findUser(id) {

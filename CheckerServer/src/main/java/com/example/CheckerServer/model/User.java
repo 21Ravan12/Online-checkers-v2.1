@@ -1,33 +1,24 @@
 package com.example.CheckerServer.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "users") 
+@Document(collection = "users")
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) 
     private Long id;  
 
-    @Column(nullable = false, unique = true) 
+    @Indexed(unique = true)
     private String email;  
 
-    @Column(nullable = false) 
     private String password;  
 
-    @Column(nullable = false) 
     private String name;  
 
-    @Column(nullable = false) 
     private int birthyear;   
 
-    @Column(nullable = true, length = 10000)
     private String profilePicture;
     
     public Long getId() {

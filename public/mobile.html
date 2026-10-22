@@ -983,7 +983,6 @@ body {
         <h1>ACCOUNT SECTION</h1>
         <button class="main-button" onclick="navigateTo('signupMenu')">Sign Up</button>
         <button class="main-button" onclick="navigateTo('loginMenu')">Log In</button>
-        <button class="main-button" onclick="navigateTo('sendCodeMenu')">Reset Password</button>
         <button class="main-button" onclick="navigateTo('menu')">Back</button>
     </div>
 
@@ -1010,34 +1009,6 @@ body {
         <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
     </div>
 
-    <div class="main-container" id="sendCodeMenu">
-        <h1>Resresh Password</h1>
-        <form id="sendCodeForm">
-            <input type="email" id="sendCodeEmail" class="main-input" placeholder="Enter your email" required>
-            <button type="submit" class="main-button">Send Code</button>
-        </form>
-        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
-    </div>
-
-    <div class="main-container" id="verifyMenuForRefreshPassword">
-        <h1>Verify Code</h1>
-        <form id="verifyRefreshPasswordForm">
-            <input type="text" id="verificationCodeForRefreshPassword" class="main-input" placeholder="Enter verification code" required>
-            <button type="submit" class="main-button">Verify</button>
-        </form>
-        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
-    </div>
-
-    <div class="main-container" id="refreshPasswordMenu">
-        <h1>Reset Password</h1>
-        <form id="refreshPasswordForm">
-            <input type="password" id="newPassword" class="main-input" placeholder="Enter new password" required>
-            <input type="password" id="confirmNewPassword" class="main-input" placeholder="Confirm new password" required>
-            <button type="submit" class="main-button">Reset Password</button>
-        </form>
-        <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
-    </div>    
-    
     <div class="main-container" id="signupMenu">
         <h1>Sign Up</h1>
         <form id="signupForm">
@@ -1050,24 +1021,11 @@ body {
         </form>
         <p>Return to the <a href="#" onclick="navigateTo('AccountMenu')">Account Menu</a></p>
     </div>
-       
-    <div class="main-container" id="verifyMenuForSignup">
-        <h1>Verify Code</h1>
-        <form id="verificationFormForSignup">
-            <input type="text" id="verificationCodeForSignup" class="main-input" placeholder="Enter verification code" required>
-            <button type="submit" class="main-button">Verify</button>
-        </form>
-        <p>Return to the <a href="#" onclick="navigateTo('Account Menu')">Account Menu</a></p>
-    </div>    
     
     <script>
 document.addEventListener("DOMContentLoaded", function() {
     document.getElementById("signupForm").addEventListener("submit", signUp);
-    document.getElementById("verificationFormForSignup").addEventListener("submit", verifyCodeForSignup);
     document.getElementById("loginForm").addEventListener("submit", logIn);
-    document.getElementById("sendCodeForm").addEventListener("submit", sendVerifyCode);
-    document.getElementById("verifyRefreshPasswordForm").addEventListener("submit", verifyMenuForRefreshPassword);
-    document.getElementById("refreshPasswordForm").addEventListener("submit", refreshPassword);
 });
 
 async function signUp(event) {
@@ -1099,7 +1057,7 @@ async function signUp(event) {
         profilePicture: defaultProfilePicture 
     };
 
-    document.getElementById("waitingScreenContentForAuth").innerHTML = "Waiting for send verification code...";
+    document.getElementById("waitingScreenContentForAuth").innerHTML = "Creating your account...";
     navigateTo('waitingScreenForAuth');
 
     try {
@@ -1129,50 +1087,13 @@ async function signUp(event) {
             return;
         }
 
-        if (data.jwt_token) {
-            sessionStorage.setItem("authToken", data.jwt_token);
-        }
-
         if (data.message) {
             alert(data.message);
-            navigateTo("verifyMenuForSignup");
+            navigateTo("loginMenu");
         }
     } catch (error) {
         alert("An unexpected error occurred: " + error.message);
         navigateTo('signupMenu');
-    }
-}
-
-async function verifyCodeForSignup(event) {
-    event.preventDefault(); 
-
-    const code = document.getElementById("verificationCodeForSignup").value.trim();
-    const token = sessionStorage.getItem("authToken");
-
-    if (!code) {
-        alert("All fields are required!");
-        return;
-    }
-
-    try {
-        const response = await fetch("http://127.0.0.1:9090/api/users/verifyForRegister", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code, token })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || "Something went wrong.");
-        }
-
-        if (data.message) {
-            alert(data.message);
-            navigateTo("loginMenu");
-        } 
-    } catch (error) {
-        alert(error.message);
     }
 }
 
@@ -1223,133 +1144,6 @@ async function logOut() {
     sessionStorage.clear("user_id");
     updateAccountUI("", "", "", "");
     navigateTo("menu");
-}
-
-async function sendVerifyCode(event) {
-    event.preventDefault();
-
-    const email = document.getElementById("sendCodeEmail").value.trim();
-
-    if (!email) {
-        alert("All fields are required!");
-        return;
-    }
-
-    const payload = {
-        email,
-    };
-
-    document.getElementById("waitingScreenContentForAuth").innerHTML = "Waiting for send verification code...";
-    navigateTo('waitingScreenForAuth');
-
-    try {
-        const response = await fetch("http://127.0.0.1:9090/api/users/changeCode", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-        
-        let data;
-        try {
-            data = await response.json();
-        } catch (error) {
-            console.error("Invalid JSON response:", data, error);
-            alert("Invalid response from server: " + data);
-            return;
-        }
-    
-        if (!response.ok) {
-            navigateTo('sendCodeMenu');
-            const errorMessage = data?.error || "An error occurred while registering.";
-            alert(errorMessage);
-            console.log(errorMessage);
-            return;
-        }
-    
-        if (data.jwt_token) {
-            sessionStorage.setItem("authToken", data.jwt_token);
-        }
-    
-        if (data.message) {
-            alert(data.message);
-            navigateTo("verifyMenuForRefreshPassword");            
-        }
-    } catch (error) {
-        console.error("Error:", error);
-        alert("An unexpected error occurred: " + error.message);
-    }
-}
-
-async function verifyMenuForRefreshPassword(event) {
-    event.preventDefault(); 
-
-    const code = document.getElementById("verificationCodeForRefreshPassword").value.trim();
-    const token = sessionStorage.getItem("authToken");
-
-    if (!code) {
-        alert("All fields are required!");
-        return;
-    }
-
-    try {
-        const response = await fetch("http://127.0.0.1:9090/api/users/verifyForChangeCode", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code, token })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || "Something went wrong.");
-        }
-
-        if (data.message) {
-            alert(data.message);
-            navigateTo("refreshPasswordMenu");
-        } 
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function refreshPassword(event) {
-    event.preventDefault(); 
-
-    const password = document.getElementById("newPassword").value;
-    const confirmPassword = document.getElementById("confirmNewPassword").value;
-    const token = sessionStorage.getItem("authToken");
-
-    if (!password) {
-        alert("All fields are required!");
-        return;
-    }
-
-    if (password !== confirmPassword) {
-        alert("Passwords do not match!");
-        return;
-    }
-
-    try {
-        const response = await fetch("http://127.0.0.1:9090/api/users/changeCodeEnd", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token, password })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || "Something went wrong.");
-        }
-
-        if (data.message) {
-            alert(data.message);
-            navigateTo("loginMenu");
-        } 
-    } catch (error) {
-        alert(error.message);
-    }
 }
 
 async function findUser(id) {
@@ -1486,8 +1280,8 @@ async function getGameHistoryList() {
 document.addEventListener("DOMContentLoaded", function () {
     const pages = ["menu", "offlineMenu", "onlineMenu", "quickMatchMenu", "gameListMenu", "createGameMenu", 
     "settingsMenu", "offlineGameContainer", "onlineGameContainer", "waitingScreen", "waitingScreenForAuth"
-    , "loginMenu", "signupMenu", "sendCodeMenu", "verifyMenuForRefreshPassword", "refreshPasswordMenu",
-    "verifyMenuForSignup", "AccountMenu", "PersonalAccountMenu", "gameHistoryList", "reviewGameContainer",
+    , "loginMenu", "signupMenu",
+    "AccountMenu", "PersonalAccountMenu", "gameHistoryList", "reviewGameContainer",
     "afterEndOfOnlineGameContainer"];
     
     function navigateTo(page) {

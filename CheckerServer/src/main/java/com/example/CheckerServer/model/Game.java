@@ -1,36 +1,24 @@
 package com.example.CheckerServer.model;
 import java.util.Date;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "games") 
+@Document(collection = "games")
 public class Game {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) 
     private Long id;  
 
-    @Column(nullable = false) 
     private Long owner;  
 
-    @Column(nullable = false) 
     private Long whitePlayer;  
 
-    @Column(nullable = false) 
     private Long blackPlayer;  
 
-    @Column(nullable = false) 
     private Long winner;   
 
-    @Column(nullable = false, length = 10000)
     private String gameData;
 
-    @Column(nullable = true, length = 10000)
     private Date date;
 
     public Long getId() {

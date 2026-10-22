@@ -19,11 +19,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/users/register", 
-                    "/api/users/verifyForRegister", 
                     "/api/users/login", 
-                    "/api/users/changeCode", 
-                    "/api/users/verifyForChangeCode", 
-                    "/api/users/changeCodeEnd", 
                     "/api/users/giveTierAndRetract", 
                     "/api/users/update", 
                     "/api/users/search", 

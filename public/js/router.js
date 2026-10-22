@@ -1,8 +1,8 @@
 document.addEventListener("DOMContentLoaded", function () {
     const pages = ["menu", "offlineMenu", "onlineMenu", "quickMatchMenu", "gameListMenu", "createGameMenu", 
     "settingsMenu", "offlineGameContainer", "onlineGameContainer", "waitingScreen", "waitingScreenForAuth"
-    , "loginMenu", "signupMenu", "sendCodeMenu", "verifyMenuForRefreshPassword", "refreshPasswordMenu",
-    "verifyMenuForSignup", "AccountMenu", "PersonalAccountMenu", "gameHistoryList", "reviewGameContainer",
+    , "loginMenu", "signupMenu",
+    "AccountMenu", "PersonalAccountMenu", "gameHistoryList", "reviewGameContainer",
     "afterEndOfOnlineGameContainer"];
     
     function navigateTo(page) {

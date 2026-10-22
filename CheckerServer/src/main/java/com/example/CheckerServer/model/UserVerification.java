@@ -1,10 +1,9 @@
 package com.example.CheckerServer.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity 
+@Document(collection = "user_verifications")
 public class UserVerification {
 
     @Id 
@@ -18,7 +17,6 @@ public class UserVerification {
 
     private int birthYear;  
 
-    @Column(nullable = true, length = 10000)
     private String profilePicture;
 
 

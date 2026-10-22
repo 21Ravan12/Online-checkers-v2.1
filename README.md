@@ -1,146 +1,116 @@
-# ♟️ Online Checkers v2.1 — *Classic but Rock-Solid*
+# Online Checkers v2.1
 
-> **Age:** A few seasons old · **Status:** Still kicking! ✅
+An online and offline checkers game built with a Spring Boot backend and a
+vanilla HTML, CSS, and JavaScript frontend.
 
-This is **Version 2.1** of my turn-based online checkers project.  
-It may not be the *newest* kid on the block, but it's **fully functional**, **well-tested**, and **ready to play** — both offline and online with friends.
+This project started as a way to learn and work in a Linux environment. While
+refreshing it, I also updated several parts of the application and its
+infrastructure.
 
-Think of it as that reliable arcade machine in the corner — old-school charm, but it *works every single time*. 🎮
+## What changed
 
----
+- Moved persistence from PostgreSQL to MongoDB.
+- Simplified registration: accounts are created directly without email
+  verification.
+- Removed the email-code password reset flow.
+- Moved real-time Socket.IO handling into the Spring Boot application, replacing
+  the separate Node.js socket server.
+- Updated the backend and frontend as part of the Linux development refresh.
 
-## 🧠 What This Project Does
+Existing PostgreSQL data is not migrated automatically. The application starts
+with MongoDB and uses a new database unless you migrate your data separately.
 
-- **👥 Online Multiplayer** — Play checkers with a friend over the internet using WebSockets for real-time sync.
-- **📜 Game History** — Rewind and fast-forward through moves in offline mode. Analyze your strategy like a chess grandmaster!
-- **🔐 User Authentication** — Secure signup/login with JWT tokens and email verification.
-- **📦 Persistent Storage** — Games and user data stored in PostgreSQL.
-- **📱 Responsive UI** — Works on desktop and mobile (yes, we have a `mobile.html` too!).
+## Features
 
----
+- Play offline or create and join online games.
+- Synchronize online game moves with Socket.IO.
+- Register and log in with an email address and password.
+- Review offline game history and navigate through moves.
+- Use the desktop or mobile-friendly frontend.
 
-## 🏗️ Tech Stack (The "Vintage but Valid" Combo)
+## Technology
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | Vanilla HTML/CSS/JS (no frameworks, just pure DOM love ❤️) |
-| **Backend API** | Java + Spring Boot (RESTful controllers) |
-| **Real-time** | Node.js + WebSockets (`socketServer.js`) |
-| **Database** | PostgreSQL |
-| **Auth** | JWT + Spring Security + Email verification |
-| **Build Tool** | Maven |
-| **Version Control** | Git |
+| Area | Technology |
+|---|---|
+| Frontend | HTML, CSS, JavaScript |
+| Backend | Java 21, Spring Boot |
+| Real-time communication | Socket.IO with `netty-socketio` |
+| Database | MongoDB |
+| Authentication | Spring Security, JWT |
+| Build | Maven |
 
----
+## Run locally on Linux
 
-## 📁 Project Structure (Simplified)
+### Prerequisites
 
+- Java 21
+- MongoDB running locally, or a MongoDB connection URI
+- A web browser
+- Internet access for loading the Socket.IO client script from its CDN
+
+### 1. Start MongoDB
+
+Start your local MongoDB service, or prepare a MongoDB connection URI. By
+default, the backend connects to:
+
+```text
+mongodb://localhost:27017/checker_db
 ```
-Online-checkers-v2.1/
-├── CheckerServer/          # Java Spring Boot backend
-│   ├── src/main/java/...   # Controllers, services, models, security
-│   └── pom.xml             # Maven dependencies
-├── public/                 # Frontend static files
-│   ├── index.html          # Desktop UI
-│   ├── mobile.html         # Mobile-friendly UI
-│   ├── assets/styles/      # CSS files
-│   └── js/                 # All client-side logic (routing, board, socket)
-├── socketServer.js         # WebSocket server for real-time moves
-├── package.json            # Node.js dependencies
-└── README.md               # You are here 🥰
-```
 
----
+To use a different MongoDB instance, set `MONGODB_URI` before launching the
+backend:
 
-## 🚀 How to Run It (Yes, it still works!)
-
-### 1. Clone the repo
 ```bash
-git clone <repository-url>
-cd Online-checkers-v2.1
+export MONGODB_URI='mongodb://<host>:<port>/<database>'
 ```
 
-### 2. Set up the database
-- Create a PostgreSQL database (e.g., `checkers_db`)
-- Update `CheckerServer/src/main/resources/application.properties` with your DB credentials
+### 2. Start the backend
 
-### 3. Run the Spring Boot backend
+From the repository root:
+
 ```bash
 cd CheckerServer
-./mvnw spring-boot:run   # or mvn spring-boot:run
+./mvnw spring-boot:run
 ```
-The API will start at `http://localhost:8080`
 
-### 4. Start the WebSocket server
+The REST API listens on port `9090`, and the Socket.IO server listens on port
+`3002`.
+
+### 3. Serve the frontend
+
+In a second terminal, from the repository root:
+
 ```bash
-npm install   # if not already done
-node socketServer.js
+python3 -m http.server 8000 --directory public
 ```
-This handles real-time game events (moves, turn sync, etc.)
 
-### 5. Open the frontend
-- Open `public/index.html` in your browser (or serve it with any static server)
-- For mobile: `public/mobile.html`
+Open [http://localhost:8000](http://localhost:8000) for the desktop version or
+[http://localhost:8000/mobile.html](http://localhost:8000/mobile.html) for the
+mobile-friendly version.
 
----
+The frontend currently connects to the backend at `127.0.0.1`, so this setup is
+for running the browser and backend on the same machine. To play from another
+device, update the frontend API and Socket.IO addresses to use the backend
+machine's reachable address.
 
-## 🎮 Gameplay Features
+## Project layout
 
-- **Register / Login** with email verification
-- **Create or join online games** with other users
-- **Real-time move sync** via WebSockets
-- **Offline mode** with full move history (rewind/fast-forward)
-- **Auto-turn switching** and win/draw detection
-- **Responsive design** — play on your phone or desktop!
+```text
+Online-checkers-v2.1/
+├── CheckerServer/
+│   ├── src/main/java/    # Spring Boot API, persistence, auth, Socket.IO
+│   └── src/main/resources/
+│       └── application.properties
+└── public/
+    ├── index.html        # Desktop frontend
+    ├── mobile.html       # Mobile-friendly frontend
+    └── js/               # Frontend game, auth, routing, and socket logic
+```
 
----
+## Notes
 
-## 🧪 Current State
-
-✅ All core features are **fully operational**  
-✅ No critical bugs (we've squashed 'em all)  
-✅ Database queries are optimized  
-✅ Authentication flow is secure  
-
-> ⚠️ *This project is considered "feature-complete" for its version. I'm not actively adding new features, but it's **production-ready** for casual play or as a learning reference.*
-
----
-
-## 🔮 What We'd Add (If Time Were Infinite)
-
-- Matchmaking system with ELO ratings
-- Animated piece captures and smoother transitions
-- Save/load game state to continue later
-- Spectator mode for ongoing matches
-
----
-
-## 🤝 Contributing
-
-This project is mostly in *maintenance mode*, but if you spot a bug or have a cool idea:
-
-1. Fork the repo  
-2. Create a branch (`git checkout -b feature/amazing-idea`)  
-3. Commit your changes  
-4. Open a Pull Request  
-
-We'll review it with love! 💖
-
----
-
-## 📄 License
-
-MIT — feel free to use, learn from, or remix this project.
-
----
-
-## 🙌 Final Words
-
-This project was built with a lot of ☕ coffee, 🧠 brainpower, and ❤️ passion.  
-It's not the newest, but it's **honest work** — and it *works*.  
-If you're here to learn or play, welcome! And if you beat me in a match... *I'll pretend the lag got me* 😉
-
----
-
-**Enjoy the game!**  
-— Your Friendly Dev 🥰
+- Email verification and email-code password recovery are disabled.
+- MongoDB collections and records are separate from the previous PostgreSQL
+  database; no automatic data migration is included.
+- This is a learning project and is not presented as a production-ready
+  authentication or deployment setup.

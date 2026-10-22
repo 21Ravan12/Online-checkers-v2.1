@@ -41,23 +41,6 @@ public class UserController {
         }
     }    
 
-    @PostMapping("/verifyForRegister")
-    public ResponseEntity<?> verifyForRegister(@RequestBody UserRequest userRequest) {
-        try {
-            String message = userService.verifyUser(
-                userRequest.getCode(),
-                userRequest.getToken()
-            );
-            
-            return ResponseEntity.ok(message); 
-        } catch (Exception e) {
-            JSONObject response = new JSONObject();
-            response.put("error", e.getMessage());
-            System.out.println(e.getMessage());
-            return ResponseEntity.badRequest().body(response.toString()); 
-        }
-    }
-
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody UserRequest userRequest) {
         try {
@@ -70,50 +53,6 @@ public class UserController {
             JSONObject response = new JSONObject();
             response.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(response.toString()); 
-        }
-    }
-
-    @PostMapping("/changeCode")
-    public ResponseEntity<?> changeCode(@RequestBody UserRequest userRequest) {
-        try {
-            String message = userService.changeUserCode(
-                userRequest.getEmail()
-            ); 
-            return ResponseEntity.ok(message); 
-        } catch (Exception e) {
-            JSONObject response = new JSONObject();
-            response.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(response.toString()); 
-        }
-    }
-
-    @PostMapping("/verifyForChangeCode")
-    public ResponseEntity<?> verifyForChangeCode(@RequestBody UserRequest userRequest) {
-        try {
-            String message = userService.verifyUserForChangeCode(
-                userRequest.getCode(),
-                userRequest.getToken()
-            );
-            return ResponseEntity.ok(message); 
-        } catch (Exception e) {
-            JSONObject response = new JSONObject();
-            response.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(response.toString());         
-        }
-    }
-
-    @PostMapping("/changeCodeEnd")
-    public ResponseEntity<?> changeCodeEnd(@RequestBody UserRequest userRequest) {
-        try {
-            String message = userService.changeUserCodeEnd(
-                userRequest.getToken(),
-                userRequest.getPassword()
-            );
-            return ResponseEntity.ok(message); 
-        } catch (Exception e) {
-            JSONObject response = new JSONObject();
-            response.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(response.toString());           
         }
     }
 
