@@ -41,6 +41,35 @@ with MongoDB and uses a new database unless you migrate your data separately.
 
 ## Run locally on Linux
 
+### Run with Docker Compose
+
+Install Docker Desktop and make sure its engine is running. From the project
+root, in a terminal where `docker version` shows both Client and Server, run:
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+The first build downloads the Java build/runtime and MongoDB images and
+compiles the backend, so it can take a few minutes. Follow startup output with:
+
+```bash
+docker compose logs -f backend
+```
+
+Open [http://localhost:8000](http://localhost:8000) for the desktop game or
+[http://localhost:8000/mobile.html](http://localhost:8000/mobile.html) for the
+mobile version. Stop the services with:
+
+```bash
+docker compose down
+```
+
+MongoDB data is kept in the `mongo_data` Docker volume when the services are
+stopped. The backend image is built from source; no local Java installation or
+prebuilt JAR is required.
+
 ### Prerequisites
 
 - Java 21
